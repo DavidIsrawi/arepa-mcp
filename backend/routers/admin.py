@@ -38,7 +38,7 @@ async def admin_index(request: Request):
 
 @router.get("/login")
 async def login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request, "error": None})
+    return templates.TemplateResponse(request, "login.html", context={"error": None})
 
 
 @router.post("/login")
@@ -51,8 +51,9 @@ async def login(
         request.session["admin_user"] = username
         return RedirectResponse(url="/admin/orders", status_code=302)
     return templates.TemplateResponse(
+        request,
         "login.html",
-        {"request": request, "error": "Invalid username or password."},
+        context={"error": "Invalid username or password."},
         status_code=401,
     )
 
@@ -80,8 +81,9 @@ async def orders_page(request: Request, _: str = Depends(require_admin)):
         for o in orders
     ]
     return templates.TemplateResponse(
+        request,
         "admin_orders.html",
-        {"request": request, "orders": annotated, "flash": _pop_flashes(request)},
+        context={"orders": annotated, "flash": _pop_flashes(request)},
     )
 
 
@@ -113,8 +115,9 @@ async def reset_orders(request: Request, _: str = Depends(require_admin)):
 @router.get("/flavors")
 async def flavors_page(request: Request, _: str = Depends(require_admin)):
     return templates.TemplateResponse(
+        request,
         "admin_flavors.html",
-        {"request": request, "flavors": storage.list_flavors(), "flash": _pop_flashes(request)},
+        context={"flavors": storage.list_flavors(), "flash": _pop_flashes(request)},
     )
 
 
@@ -190,9 +193,9 @@ async def delete_flavor(
 @router.get("/users")
 async def users_page(request: Request, current_user: str = Depends(require_admin)):
     return templates.TemplateResponse(
+        request,
         "admin_users.html",
-        {
-            "request": request,
+        context={
             "users": storage.list_users(),
             "current_user": current_user,
             "flash": _pop_flashes(request),

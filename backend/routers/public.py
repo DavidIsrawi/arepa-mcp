@@ -115,6 +115,7 @@ async def dashboard(request: Request):
     ready = [_annotate(o) for o in orders if o.get("status") == "ready"]
 
     return templates.TemplateResponse(
+        request,
         "dashboard.html",
-        {"request": request, "pending": pending, "ready": ready},
+        context={"pending": pending, "ready": ready},
     )
