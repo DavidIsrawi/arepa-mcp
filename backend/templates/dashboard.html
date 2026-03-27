@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="refresh" content="5" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🧁 Cupcake Store</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { display: ['system-ui', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <style>
+    @keyframes pulse-border {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.6); }
+      50%       { box-shadow: 0 0 0 16px rgba(74, 222, 128, 0); }
+    }
+    .ready-card { animation: pulse-border 2s ease-in-out infinite; }
+  </style>
+</head>
+<body class="bg-gray-950 text-white min-h-screen flex flex-col p-8 gap-8 font-display">
+
+  <!-- Header -->
+  <header class="text-center">
+    <h1 class="text-7xl font-black tracking-tight text-pink-400 drop-shadow-lg">🧁 Cupcake Store</h1>
+    <p class="text-2xl text-gray-400 mt-2">Order via your AI agent &nbsp;·&nbsp; Pickup at the counter</p>
+  </header>
+
+  <!-- Order boards -->
+  <div class="grid grid-cols-2 gap-8 flex-1">
+
+    <!-- Pending queue -->
+    <section>
+      <h2 class="text-4xl font-bold text-yellow-400 mb-5 flex items-center gap-3">
+        <span class="text-5xl">🕐</span> Preparing…
+      </h2>
+
+      {% if pending %}
+        <div class="flex flex-col gap-4">
+          {% for order in pending %}
+          <div class="bg-yellow-950 border border-yellow-700 rounded-2xl px-8 py-5 flex items-center justify-between">
+            <div>
+              <p class="text-4xl font-black leading-tight">{{ order.customer_name }}</p>
+              <p class="text-yellow-300 text-2xl mt-1">{{ order.flavor_name }}</p>
+            </div>
+            <span class="bg-yellow-800 text-yellow-200 text-lg font-semibold px-5 py-2 rounded-full">In queue</span>
+          </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="bg-gray-900 rounded-2xl p-12 text-center border border-gray-800">
+          <p class="text-gray-600 text-3xl">No orders yet</p>
+          <p class="text-gray-700 text-xl mt-2">Ask your AI agent to order!</p>
+        </div>
+      {% endif %}
+    </section>
+
+    <!-- Ready for pickup -->
+    <section>
+      <h2 class="text-4xl font-bold text-green-400 mb-5 flex items-center gap-3">
+        <span class="text-5xl">✅</span> Ready for Pickup!
+      </h2>
+
+      {% if ready %}
+        <div class="flex flex-col gap-4">
+          {% for order in ready %}
+          <div class="ready-card bg-green-950 border-2 border-green-500 rounded-2xl px-8 py-5 flex items-center justify-between">
+            <div>
+              <p class="text-5xl font-black leading-tight text-white">{{ order.customer_name }}</p>
+              <p class="text-green-300 text-2xl mt-1">{{ order.flavor_name }}</p>
+            </div>
+            <span class="text-6xl">🎉</span>
+          </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="bg-gray-900 rounded-2xl p-12 text-center border border-gray-800">
+          <p class="text-gray-600 text-3xl">—</p>
+        </div>
+      {% endif %}
+    </section>
+
+  </div>
+
+  <!-- Footer -->
+  <footer class="text-center text-gray-700 text-lg">
+    Use your AI agent &nbsp;·&nbsp; One cupcake per person &nbsp;·&nbsp; Say your name for pickup
+    <span class="ml-6 text-gray-800">↻ auto-refresh every 5 s</span>
+  </footer>
+
+</body>
+</html>
