@@ -1,0 +1,30 @@
+services:
+
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}
+      - SESSION_SECRET=${SESSION_SECRET:-change-me-to-a-long-random-string}
+    depends_on:
+      azurite:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Local Azure Table Storage emulator — remove this service when using real Azure Storage
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    ports:
+      - "10002:10002"   # Table storage port
+    command: azurite-table --blobHost 0.0.0.0 --tableHost 0.0.0.0
+    volumes:
+      - azurite_data:/data
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "10002"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  azurite_data:

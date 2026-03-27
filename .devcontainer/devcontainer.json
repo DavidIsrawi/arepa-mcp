@@ -1,0 +1,63 @@
+{
+  "name": "Cupcake MCP",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+
+  "features": {
+    // Docker-in-Docker — needed for azd to build & push the container image
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest",
+      "dockerDashComposeVersion": "v2"
+    },
+    // Node.js LTS — used to run Azurite (local Azure Storage emulator)
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "lts"
+    }
+  },
+
+  // Install Azure CLI, azd, Python dependencies and Azurite after the container is created.
+  // azd and az are installed via official scripts to avoid OCI feature resolution issues.
+  "postCreateCommand": "curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash && curl -fsSL https://aka.ms/install-azd.sh | sudo bash && pip install -r requirements.txt && npm install -g azurite",
+
+  // Forward app and Azurite table storage ports
+  "forwardPorts": [8000, 10002],
+  "portsAttributes": {
+    "8000": {
+      "label": "Cupcake Store",
+      "onAutoForward": "notify"
+    },
+    "10002": {
+      "label": "Azurite (Table Storage)",
+      "onAutoForward": "silent"
+    }
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        // Python
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        // REST / API testing
+        "humao.rest-client",
+        // Bicep (infra/*)
+        "ms-azuretools.vscode-bicep",
+        // Azure tools
+        "ms-azuretools.vscode-azurecontainerapps",
+        "ms-azuretools.vscode-docker",
+        // Tailwind intellisense
+        "bradlc.vscode-tailwindcss",
+        // Jinja2 template support
+        "wholroyd.jinja"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "editor.formatOnSave": true,
+        "[python]": {
+          "editor.defaultFormatter": "ms-python.python"
+        }
+      }
+    }
+  },
+
+  "remoteUser": "vscode"
+}

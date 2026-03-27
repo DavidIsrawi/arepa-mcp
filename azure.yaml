@@ -1,0 +1,9 @@
+name: cupcake-mcp
+
+services:
+  app:
+    project: .
+    host: containerapp
+    docker:
+      path: ./Dockerfile
+      context: .

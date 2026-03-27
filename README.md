@@ -12,74 +12,166 @@ A workshop demo that shows how AI agents can interact with a real-world service 
 | **Admin portal** | Web UI to manage flavours & stock, track orders, manage users |
 | **Beamer dashboard** | Full-screen live order queue — designed to be projected during the workshop |
 | **MCP server** | Agents connect here to list cupcakes and place orders on behalf of a user |
+| **Docker support** | `docker-compose.yml` with Azurite emulator for local dev |
+| **Azure deployment** | One-command `azd up` via Bicep — Container Apps + Storage Account |
 
 ---
 
 ## Tech stack
 
-- **Python 3.11+** with [FastAPI](https://fastapi.tiangolo.com/)
-- **Azure Table Storage** (or [Azurite](https://github.com/Azure/Azurite) for local dev)
-- **Jinja2 + Tailwind CSS** for the dashboard and admin portal
-- **[fastmcp](https://github.com/jlowin/fastmcp)** for the MCP server
-- Sessions via `itsdangerous` signed cookies
+- **Python 3.12** with [FastAPI](https://fastapi.tiangolo.com/) + Uvicorn
+- **Azure Table Storage** via `azure-data-tables` (or [Azurite](https://github.com/Azure/Azurite) for local dev)
+- **Jinja2 + Tailwind CSS** (CDN) for the dashboard and admin portal
+- **[fastmcp](https://github.com/jlowin/fastmcp)** for the MCP server, mounted at `/mcp`
+- **bcrypt** for password hashing
+- **itsdangerous** signed cookies for admin sessions
+
+---
+
+## Project structure
+
+```
+cupcake-mcp/
+├── backend/
+│   ├── main.py              # FastAPI app — wires up routers, session middleware, MCP mount
+│   ├── storage.py           # Azure Table Storage client + all CRUD helpers
+│   ├── auth.py              # require_admin FastAPI dependency
+│   ├── mcp_server.py        # fastmcp tools: list_cupcakes, order_cupcake, check_order_status
+│   ├── routers/
+│   │   ├── public.py        # GET /cupcakes, POST /orders, GET /dashboard
+│   │   └── admin.py         # All /admin/* routes (login, orders, flavours, users, reset)
+│   └── templates/
+│       ├── dashboard.html   # Beamer view — dark, large fonts, 5 s auto-refresh
+│       ├── login.html       # Admin login page
+│       ├── admin_base.html  # Shared admin layout with nav
+│       ├── admin_orders.html
+│       ├── admin_flavors.html
+│       └── admin_users.html
+├── infra/
+│   ├── main.bicep           # Subscription-scoped entry — creates resource group
+│   ├── resources.bicep      # Storage, ACR, Log Analytics, Container Apps Env + App
+│   └── main.parameters.bicepparam
+├── azure.yaml               # azd service definition
+├── Dockerfile               # python:3.12-slim, installs deps, runs uvicorn
+├── docker-compose.yml       # app + azurite services for local Docker dev
+├── .dockerignore
+├── .env.example
+├── .gitignore
+└── requirements.txt
+```
 
 ---
 
 ## Quick start
 
-### 1. Install dependencies
+### Option A — Deploy to Azure with `azd` (one command)
+
+Requires the [Azure Developer CLI](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd).
 
 ```bash
-pip install -r requirements.txt
+azd auth login
+azd up
 ```
 
-### 2. Configure storage
+`azd up` will:
+1. Prompt for an environment name (e.g. `cupcake`) and Azure region
+2. Provision a **Resource Group**, **Storage Account**, **Container Registry**, **Log Analytics**, **Container Apps Environment**, and **Container App** via Bicep
+3. Build the Docker image, push it to the registry, and deploy it to Container Apps
+4. Print the live URL when done
 
-Copy the example env file:
+| Command | Effect |
+|---|---|
+| `azd up` | Provision infra + build + deploy |
+| `azd deploy` | Rebuild & redeploy app only (no infra changes) |
+| `azd down` | Tear down all provisioned resources |
+
+**What gets provisioned:**
+```
+rg-<envname>/
+├── stXXXXXXXXXXX          Azure Storage Account (Standard LRS)
+├── crXXXXXXXXXXX          Container Registry (Basic)
+├── log-XXXXXXXXXXX        Log Analytics Workspace
+├── cae-<envname>          Container Apps Environment
+└── ca-<envname>           Container App (1 replica, external ingress on port 8000)
+                           ↳ AZURE_STORAGE_CONNECTION_STRING  → secret
+                           ↳ SESSION_SECRET                    → secret
+```
+
+Storage credentials and the session secret are stored as **Container Apps secrets** — never visible as plain environment variables.
+
+---
+
+### Option B — Docker Compose (local)
 
 ```bash
 cp .env.example .env
 ```
 
-**Option A — Azurite (local, no Azure account needed):**
+Edit `.env` and set the Azurite connection string:
+```
+AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://azurite:10002/devstoreaccount1;
+```
 
+Then:
+```bash
+docker compose up --build
+```
+
+The `docker-compose.yml` starts two services:
+- **`app`** — the FastAPI container (port 8000)
+- **`azurite`** — Azure Table Storage emulator (port 10002), with a healthcheck so the app waits for it to be ready
+
+To use real Azure Storage instead, set your connection string in `.env` and remove the `azurite` service block from `docker-compose.yml`.
+
+---
+
+### Option C — Local Python
+
+**1. Install dependencies:**
+```bash
+pip install -r requirements.txt
+```
+
+**2. Configure storage:**
+```bash
+cp .env.example .env
+```
+
+Local dev with Azurite:
 ```bash
 npm install -g azurite
 azurite --location .azurite --silent &
+# Connection string is pre-filled in .env.example for host-local Azurite
 ```
 
-The Azurite connection string is pre-filled in `.env.example` — no further changes needed.
-
-**Option B — Real Azure Storage:**
-
-Paste your connection string into `.env`:
-
+Or set a real Azure Storage connection string in `.env`:
 ```
 AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=https;AccountName=...
 ```
 
-### 3. Run
-
+**3. Run:**
 ```bash
 uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-On first start, tables are created automatically and a default admin account is seeded.
+On first start, the three Azure tables (`Flavors`, `Orders`, `Users`) are created automatically and the default admin account is seeded.
 
 ---
 
 ## URLs
 
-| URL | What |
+| URL | Description |
 |---|---|
-| `http://localhost:8000/dashboard` | Beamer dashboard (project this!) |
-| `http://localhost:8000/admin` | Admin portal |
-| `http://localhost:8000/docs` | OpenAPI / Swagger |
+| `http://localhost:8000/dashboard` | Beamer dashboard — project this on the screen |
+| `http://localhost:8000/admin` | Admin portal (redirects to login) |
+| `http://localhost:8000/docs` | OpenAPI / Swagger — interactive API docs |
+| `http://localhost:8000/cupcakes` | `GET` — public list of flavours + stock |
+| `http://localhost:8000/orders` | `GET` — public list of all orders |
 | `http://localhost:8000/mcp` | MCP endpoint for agents |
 
 ---
 
-## Default credentials
+## Default admin credentials
 
 | Username | Password |
 |---|---|
@@ -91,60 +183,170 @@ On first start, tables are created automatically and a default admin account is 
 
 ## Admin portal
 
-Log in at `/admin` to:
+Log in at `/admin` to access three management sections:
 
-- **Orders** — see the live order queue, mark orders as *Ready* or *Collected*, and clear all orders between sessions
-- **Flavours** — add flavours, set stock (how many cupcakes you actually have today), and use the inline +/− buttons for quick stock updates
-- **Users** — add/remove admin accounts and change passwords
+### Orders `/admin/orders`
+- Live table of all orders with status badges (Pending / Ready / Collected)
+- **Mark Ready** button — moves the order to the "Ready for pickup" section on the beamer
+- **Mark Collected** button — finalises the order
+- **Clear All Orders** button — deletes every order (does NOT touch stock). Use this between workshop sessions.
+
+### Flavours `/admin/flavors`
+- Add flavours (name, description, price, stock, image URL)
+- Inline **+** / **−** stock buttons for fast adjustments during setup
+- Edit details (name, price, description, image URL) via an inline form
+- Delete a flavour
+
+> Stock represents **real physical cupcakes**. Set the stock before the workshop starts to match how many you actually have. It is never auto-restored — only decrements as orders come in.
+
+### Users `/admin/users`
+- Add admin users (username + password)
+- Change any user's password
+- Delete users (cannot delete your own account)
 
 ### Pre-workshop checklist
 
-1. Bake/buy cupcakes, count them
-2. Go to **Flavours** → set stock numbers to match what you have
-3. Go to **Orders** → click **Clear All Orders** to start fresh
+1. Bake/buy cupcakes and count them
+2. Open **Flavours** → set stock numbers to match
+3. Open **Orders** → click **Clear All Orders** to start fresh
 4. Open `/dashboard` fullscreen on the beamer
+5. Distribute the MCP server URL to attendees
 
 ---
 
-## MCP tools
+## Beamer dashboard
 
-Agents connect to `http://<host>:8000/mcp` using the **streamable HTTP** transport.
+`/dashboard` is designed to be projected on a screen visible to everyone in the room:
+
+- **Dark background**, large high-contrast fonts — readable from the back of a room
+- Left column: **Preparing…** — pending orders queue (name + flavour)
+- Right column: **Ready for Pickup!** — pulsing green cards with the customer name
+- Auto-refreshes every **5 seconds** via `<meta http-equiv="refresh">` — no JavaScript framework needed
+
+---
+
+## MCP server
+
+Agents connect to `http://<host>:8000/mcp` using the **streamable HTTP** transport. No authentication is required — the MCP server is intentionally open for workshop demos.
 
 Three tools are available:
 
 ### `list_cupcakes()`
-Returns all flavours that are currently in stock.
+Returns all flavours that are currently in stock (stock > 0).
 
 ```json
 [
-  { "id": "choc-fudge", "name": "Chocolate Fudge", "description": "Rich dark ganache", "price": 2.50, "stock": 8 }
+  {
+    "id": "choc-fudge",
+    "name": "Chocolate Fudge",
+    "description": "Rich dark chocolate ganache",
+    "price": 2.50,
+    "stock": 8
+  }
 ]
 ```
 
 ### `order_cupcake(flavor_id, customer_name)`
-Places one order. The `customer_name` is called out loud at pickup (Starbucks-style).
+Places one order. `customer_name` is used as the Starbucks-style pickup call-out.
 
 ```json
-{ "success": true, "order_id": "...", "message": "Order placed! Listen for 'Alice' 🧁" }
+{ "success": true, "order_id": "uuid", "message": "Order placed! Listen for 'Alice' 🧁" }
 ```
 
+Returns `success: false` with a descriptive message if:
+- The name already has an active order
+- The flavour doesn't exist
+- The flavour is out of stock
+- The name contains invalid characters
+
 ### `check_order_status(customer_name)`
-Returns the current status of an active order for that name.
+Returns the current status for an active order under that name.
+
+```json
+{ "found": true, "flavor": "Chocolate Fudge", "status": "ready", "message": "🎉 Your Chocolate Fudge is READY! Come pick it up, 'Alice'!" }
+```
 
 ---
 
-## Guard rails
+## Guard rails (misuse prevention)
 
 | Rule | How it's enforced |
 |---|---|
-| One cupcake per order | No `quantity` parameter exists |
-| No double ordering | Rejected if the same name already has a pending or ready order |
-| Out-of-stock protection | Stock is checked and decremented atomically before confirming |
+| One cupcake per order | No `quantity` parameter exists in the tool or API |
+| No double ordering | Rejected if the same name already has a `pending` or `ready` order |
+| Out-of-stock protection | Stock checked before accepting; decremented immediately on order |
+| Name validation | Letters, numbers, spaces, hyphens only — max 50 chars |
 
 ---
 
-## Example MCP client config (Claude Desktop)
+## REST API
 
+The full API is documented at `/docs`. Key public endpoints:
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/cupcakes` | List all flavours with stock |
+| `POST` | `/orders` | Place an order (same guard rails as MCP) |
+| `GET` | `/orders` | List all orders |
+| `GET` | `/dashboard` | Beamer HTML view |
+
+Key admin endpoints (require login session):
+
+| Method | Path | Description |
+|---|---|---|
+| `GET/POST` | `/admin/login` | Login form |
+| `POST` | `/admin/logout` | Logout |
+| `GET` | `/admin/orders` | Order management page |
+| `POST` | `/admin/orders/{id}/status` | Update order status |
+| `POST` | `/admin/reset` | Clear all orders |
+| `GET` | `/admin/flavors` | Flavour management page |
+| `POST` | `/admin/flavors` | Create flavour |
+| `POST` | `/admin/flavors/{id}/edit` | Update flavour |
+| `POST` | `/admin/flavors/{id}/delete` | Delete flavour |
+| `GET` | `/admin/users` | User management page |
+| `POST` | `/admin/users` | Create user |
+| `POST` | `/admin/users/{username}/password` | Change password |
+| `POST` | `/admin/users/{username}/delete` | Delete user |
+
+---
+
+## Data model (Azure Table Storage)
+
+Three tables are created automatically on first startup:
+
+**`Flavors`**
+| Field | Type | Description |
+|---|---|---|
+| PartitionKey | `"flavor"` | Fixed |
+| RowKey | string | URL-safe slug e.g. `"choc-fudge"` |
+| name | string | Display name |
+| description | string | Short description |
+| price | float | Price in local currency |
+| stock | int | Current physical stock |
+| image_url | string | Optional image URL |
+
+**`Orders`**
+| Field | Type | Description |
+|---|---|---|
+| PartitionKey | `"order"` | Fixed |
+| RowKey | UUID | Order ID |
+| flavor_id | string | FK → Flavors RowKey |
+| customer_name | string | Pickup name |
+| status | string | `pending` / `ready` / `collected` |
+| created_at | ISO 8601 | Order timestamp |
+
+**`Users`**
+| Field | Type | Description |
+|---|---|---|
+| PartitionKey | `"user"` | Fixed |
+| RowKey | string | Username |
+| password_hash | string | bcrypt hash |
+
+---
+
+## MCP client config examples
+
+**Claude Desktop** (`claude_desktop_config.json`):
 ```json
 {
   "mcpServers": {
@@ -155,22 +357,14 @@ Returns the current status of an active order for that name.
 }
 ```
 
----
-
-## Project structure
-
+**Remote / Azure deployment:**
+```json
+{
+  "mcpServers": {
+    "cupcake-store": {
+      "url": "https://ca-cupcake.<region>.azurecontainerapps.io/mcp"
+    }
+  }
+}
 ```
-cupcake-mcp/
-├── backend/
-│   ├── main.py              # FastAPI app entry point
-│   ├── storage.py           # Azure Table Storage helpers
-│   ├── auth.py              # Session auth dependency
-│   ├── mcp_server.py        # MCP tools (fastmcp)
-│   ├── routers/
-│   │   ├── public.py        # /cupcakes, /orders, /dashboard
-│   │   └── admin.py         # /admin/* routes
-│   └── templates/           # Jinja2 templates (dashboard + admin)
-├── .env.example
-├── requirements.txt
-└── README.md
-```
+
