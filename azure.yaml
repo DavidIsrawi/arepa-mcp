@@ -2,6 +2,7 @@ name: cupcake-mcp
 
 services:
   app:
+    language: python
     project: .
     host: containerapp
     docker:

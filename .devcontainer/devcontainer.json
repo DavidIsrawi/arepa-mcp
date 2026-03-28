@@ -6,6 +6,7 @@
     // Docker-in-Docker — needed for azd to build & push the container image
     "ghcr.io/devcontainers/features/docker-in-docker:2": {
       "version": "latest",
+      "moby": false,
       "dockerDashComposeVersion": "v2"
     },
     // Node.js LTS — used to run Azurite (local Azure Storage emulator)

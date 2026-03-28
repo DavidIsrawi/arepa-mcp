@@ -5,9 +5,8 @@ targetScope = 'subscription'
 @description('Name of the environment (e.g. dev, prod, workshop)')
 param environmentName string
 
-@minLength(1)
 @description('Primary Azure region for all resources')
-param location string
+param location string = deployment().location
 
 var tags = { 'azd-env-name': environmentName }
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
