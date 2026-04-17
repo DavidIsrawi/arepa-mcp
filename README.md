@@ -13,7 +13,7 @@ A workshop demo that shows how AI agents can interact with a real-world service 
 | **Beamer dashboard** | Full-screen live order queue — designed to be projected during the workshop |
 | **MCP server** | Agents connect here to list cupcakes and place orders on behalf of a user |
 | **Docker support** | `docker-compose.yml` with Azurite emulator for local dev |
-| **Azure deployment** | One-command `azd up` via Bicep — Container Apps + Storage Account |
+| **Azure deployment** | GitHub Actions workflow to build & deploy to Azure Container Apps |
 
 ---
 
@@ -47,11 +47,9 @@ cupcake-mcp/
 │       ├── admin_orders.html
 │       ├── admin_flavors.html
 │       └── admin_users.html
-├── infra/
-│   ├── main.bicep           # Subscription-scoped entry — creates resource group
-│   ├── resources.bicep      # Storage, ACR, Log Analytics, Container Apps Env + App
-│   └── main.parameters.bicepparam
-├── azure.yaml               # azd service definition
+├── .github/
+│   └── workflows/
+│       └── deploy.yml       # Build image → push to ACR → update Container App
 ├── Dockerfile               # python:3.12-slim, installs deps, runs uvicorn
 ├── docker-compose.yml       # app + azurite services for local Docker dev
 ├── .dockerignore
@@ -64,40 +62,40 @@ cupcake-mcp/
 
 ## Quick start
 
-### Option A — Deploy to Azure with `azd` (one command)
+### Option A — Deploy to Azure via GitHub Actions
 
-Requires the [Azure Developer CLI](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd).
+The workflow at `.github/workflows/deploy.yml` builds the Docker image, pushes it to an Azure Container Registry, and updates an existing Azure Container App.
+
+**One-time setup (infrastructure):**
 
 ```bash
-azd auth login
-azd up
+# Create RG, ACR, Storage, Container Apps Environment + App
+az group create -n rg-cupcake-mcp -l eastus
+az acr create -g rg-cupcake-mcp -n <acr-name> --sku Basic --admin-enabled true
+az storage account create -g rg-cupcake-mcp -n <storage-name> -l eastus --sku Standard_LRS --kind StorageV2
+az containerapp env create -g rg-cupcake-mcp -n cae-cupcake-mcp -l eastus --logs-destination none
+az containerapp create -g rg-cupcake-mcp -n ca-cupcake-mcp \
+  --environment cae-cupcake-mcp \
+  --image mcr.microsoft.com/k8se/quickstart:latest \
+  --target-port 8000 --ingress external \
+  --secrets storage-conn="<conn-str>" session-secret="<random>" \
+  --env-vars AZURE_STORAGE_CONNECTION_STRING=secretref:storage-conn SESSION_SECRET=secretref:session-secret
 ```
 
-`azd up` will:
-1. Prompt for an environment name (e.g. `cupcake`) and Azure region
-2. Provision a **Resource Group**, **Storage Account**, **Container Registry**, **Log Analytics**, **Container Apps Environment**, and **Container App** via Bicep
-3. Build the Docker image, push it to the registry, and deploy it to Container Apps
-4. Print the live URL when done
+**One-time setup (GitHub OIDC):** Create an Entra ID app registration with a federated credential for this repo/branch, grant it `AcrPush` on the registry and `Contributor` on the resource group.
 
-| Command | Effect |
+**Set these GitHub repository variables** (Settings → Secrets and variables → Actions → Variables):
+
+| Variable | Value |
 |---|---|
-| `azd up` | Provision infra + build + deploy |
-| `azd deploy` | Rebuild & redeploy app only (no infra changes) |
-| `azd down` | Tear down all provisioned resources |
+| `AZURE_CLIENT_ID` | App registration client ID |
+| `AZURE_TENANT_ID` | Entra tenant ID |
+| `AZURE_SUBSCRIPTION_ID` | Subscription ID |
+| `AZURE_RESOURCE_GROUP` | `rg-cupcake-mcp` |
+| `AZURE_CONTAINER_APP_NAME` | `ca-cupcake-mcp` |
+| `ACR_NAME` | Your ACR name (just the name, not FQDN) |
 
-**What gets provisioned:**
-```
-rg-<envname>/
-├── stXXXXXXXXXXX          Azure Storage Account (Standard LRS)
-├── crXXXXXXXXXXX          Container Registry (Basic)
-├── log-XXXXXXXXXXX        Log Analytics Workspace
-├── cae-<envname>          Container Apps Environment
-└── ca-<envname>           Container App (1 replica, external ingress on port 8000)
-                           ↳ AZURE_STORAGE_CONNECTION_STRING  → secret
-                           ↳ SESSION_SECRET                    → secret
-```
-
-Storage credentials and the session secret are stored as **Container Apps secrets** — never visible as plain environment variables.
+Push to `main` — or run the workflow manually — and the app will be deployed.
 
 ---
 
