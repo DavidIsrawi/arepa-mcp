@@ -1,8 +1,26 @@
+import functools
+import logging
 import re
 
 from fastmcp import FastMCP
 
 from backend import storage
+
+logger = logging.getLogger("mcp.tools")
+
+
+def _log_call(func):
+    """Decorator: log the incoming parameters and the returned result for each tool call."""
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        logger.info("→ %s %s", func.__name__, kwargs or args)
+        result = func(*args, **kwargs)
+        logger.info("← %s %s", func.__name__, result)
+        return result
+
+    return wrapper
+
 
 mcp = FastMCP(
     "Cupcake Store 🧁",
@@ -18,6 +36,7 @@ _NAME_RE = re.compile(r"^[a-zA-Z0-9 \-]{1,50}$")
 
 
 @mcp.tool()
+@_log_call
 def list_cupcakes() -> list[dict]:
     """List all cupcake flavors that are currently in stock."""
     flavors = storage.list_flavors()
@@ -35,6 +54,7 @@ def list_cupcakes() -> list[dict]:
 
 
 @mcp.tool()
+@_log_call
 def order_cupcake(flavor_id: str, customer_name: str) -> dict:
     """
     Order one cupcake for pickup. Listen for your name to be called at the counter.
@@ -89,6 +109,7 @@ def order_cupcake(flavor_id: str, customer_name: str) -> dict:
 
 
 @mcp.tool()
+@_log_call
 def check_order_status(customer_name: str) -> dict:
     """
     Check the current order status for a given pickup name.
