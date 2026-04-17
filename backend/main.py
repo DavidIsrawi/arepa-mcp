@@ -11,11 +11,16 @@ from backend import storage  # noqa: E402 — must come after load_dotenv
 from backend.mcp_server import mcp
 from backend.routers import admin, public
 
+# Build the MCP ASGI sub-app once so we can reuse its lifespan
+mcp_app = mcp.http_app(path="/")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     storage.ensure_tables_and_seed()
-    yield
+    # FastMCP requires its own lifespan to start its session manager task group
+    async with mcp_app.lifespan(app):
+        yield
 
 
 app = FastAPI(
@@ -35,4 +40,4 @@ app.include_router(public.router)
 app.include_router(admin.router)
 
 # Mount the MCP server at /mcp (streamable HTTP transport)
-app.mount("/mcp", mcp.http_app())
+app.mount("/mcp", mcp_app)
