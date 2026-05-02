@@ -5,8 +5,7 @@
 {% block content %}
 <div class="flex items-center justify-between mb-6">
   <h1 class="text-2xl font-bold text-gray-800">Orders</h1>
-  <form method="post" action="/admin/reset"
-    onsubmit="return confirm('Clear ALL orders? This cannot be undone.')">
+  <form method="post" action="/admin/reset" onsubmit="return confirm('Clear ALL orders? This cannot be undone.')">
     <button type="submit"
       class="bg-red-500 hover:bg-red-600 text-white text-sm font-semibold px-5 py-2 rounded-lg transition-colors">
       🗑 Clear All Orders
@@ -21,6 +20,7 @@
       <tr>
         <th class="px-6 py-3 text-left">Name</th>
         <th class="px-6 py-3 text-left">Flavour</th>
+        <th class="px-6 py-3 text-left">Kind</th>
         <th class="px-6 py-3 text-left">Status</th>
         <th class="px-6 py-3 text-left">Time</th>
         <th class="px-6 py-3 text-left">Actions</th>
@@ -29,15 +29,26 @@
     <tbody class="divide-y divide-gray-100">
       {% for o in orders %}
       <tr class="hover:bg-gray-50">
-        <td class="px-6 py-4 font-semibold text-gray-800">{{ o.customer_name }}</td>
+        <td class="px-6 py-4 font-semibold text-gray-800">
+          {{ o.customer_name }}
+          {% if o.customer_id %}<span class="block text-[10px] text-gray-400 font-mono">{{ o.customer_id }}</span>{%
+          endif %}
+        </td>
         <td class="px-6 py-4 text-gray-600">{{ o.flavor_name }}</td>
         <td class="px-6 py-4">
-          {% if o.status == 'pending' %}
-            <span class="bg-yellow-100 text-yellow-800 text-xs font-semibold px-3 py-1 rounded-full">Pending</span>
-          {% elif o.status == 'ready' %}
-            <span class="bg-green-100 text-green-800 text-xs font-semibold px-3 py-1 rounded-full">Ready ✅</span>
+          {% if o.kind == 'test' %}
+          <span class="bg-sky-100 text-sky-800 text-xs font-semibold px-3 py-1 rounded-full">TEST</span>
           {% else %}
-            <span class="bg-gray-100 text-gray-600 text-xs font-semibold px-3 py-1 rounded-full">Collected</span>
+          <span class="bg-pink-100 text-pink-800 text-xs font-semibold px-3 py-1 rounded-full">REAL</span>
+          {% endif %}
+        </td>
+        <td class="px-6 py-4">
+          {% if o.status == 'pending' %}
+          <span class="bg-yellow-100 text-yellow-800 text-xs font-semibold px-3 py-1 rounded-full">Pending</span>
+          {% elif o.status == 'ready' %}
+          <span class="bg-green-100 text-green-800 text-xs font-semibold px-3 py-1 rounded-full">Ready ✅</span>
+          {% else %}
+          <span class="bg-gray-100 text-gray-600 text-xs font-semibold px-3 py-1 rounded-full">Collected</span>
           {% endif %}
         </td>
         <td class="px-6 py-4 text-gray-400 text-xs">{{ o.created_at }}</td>

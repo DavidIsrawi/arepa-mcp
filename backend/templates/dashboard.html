@@ -1,97 +1,182 @@
 <!DOCTYPE html>
 <html lang="en" class="h-full">
+
 <head>
-  <meta charset="UTF-8" />
-  <meta http-equiv="refresh" content="5" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>🧁 Cupcake Store</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: { display: ['system-ui', 'sans-serif'] }
+    <meta charset="UTF-8" />
+    <meta http-equiv="refresh" content="10" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>🧁 Cupcake Store</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: { fontFamily: { display: ['system-ui', 'sans-serif'] } } }
         }
-      }
-    }
-  </script>
-  <style>
-    @keyframes pulse-border {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.6); }
-      50%       { box-shadow: 0 0 0 16px rgba(74, 222, 128, 0); }
-    }
-    .ready-card { animation: pulse-border 2s ease-in-out infinite; }
-  </style>
+    </script>
+    <style>
+        @keyframes pulse-border {
+
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.6);
+            }
+
+            50% {
+                box-shadow: 0 0 0 16px rgba(74, 222, 128, 0);
+            }
+        }
+
+        .ready-card {
+            animation: pulse-border 2s ease-in-out infinite;
+        }
+
+        @keyframes voucher-glow {
+
+            0%,
+            100% {
+                text-shadow: 0 0 18px rgba(244, 114, 182, 0.6);
+            }
+
+            50% {
+                text-shadow: 0 0 30px rgba(244, 114, 182, 1);
+            }
+        }
+
+        .voucher-code {
+            animation: voucher-glow 2.5s ease-in-out infinite;
+            letter-spacing: 0.4em;
+        }
+    </style>
 </head>
-<body class="bg-gray-950 text-white min-h-screen flex flex-col p-8 gap-8 font-display">
 
-  <!-- Header -->
-  <header class="text-center">
-    <h1 class="text-7xl font-black tracking-tight text-pink-400 drop-shadow-lg">🧁 Cupcake Store</h1>
-    <p class="text-2xl text-gray-400 mt-2">Order via your AI agent &nbsp;·&nbsp; Pickup at the counter</p>
-  </header>
+<body class="bg-gray-950 text-white min-h-screen flex flex-col p-8 gap-6 font-display">
 
-  <!-- Order boards -->
-  <div class="grid grid-cols-2 gap-8 flex-1">
+    <!-- Header -->
+    <header class="text-center">
+        <h1 class="text-7xl font-black tracking-tight text-pink-400 drop-shadow-lg">🧁 Cupcake Store</h1>
+        <p class="text-2xl text-gray-400 mt-2">Order via your AI agent &nbsp;·&nbsp; Pickup at the counter</p>
+    </header>
 
-    <!-- Pending queue -->
-    <section>
-      <h2 class="text-4xl font-bold text-yellow-400 mb-5 flex items-center gap-3">
-        <span class="text-5xl">🕐</span> Preparing…
-      </h2>
-
-      {% if pending %}
-        <div class="flex flex-col gap-4">
-          {% for order in pending %}
-          <div class="bg-yellow-950 border border-yellow-700 rounded-2xl px-8 py-5 flex items-center justify-between">
-            <div>
-              <p class="text-4xl font-black leading-tight">{{ order.customer_name }}</p>
-              <p class="text-yellow-300 text-2xl mt-1">{{ order.flavor_name }}</p>
-            </div>
-            <span class="bg-yellow-800 text-yellow-200 text-lg font-semibold px-5 py-2 rounded-full">In queue</span>
-          </div>
-          {% endfor %}
+    <!-- Voucher panel -->
+    <section
+        class="bg-gradient-to-r from-pink-900 via-fuchsia-900 to-pink-900 border border-pink-500/40 rounded-3xl px-10 py-6 flex items-center justify-between shadow-2xl">
+        <div>
+            <p class="uppercase tracking-widest text-pink-300 text-sm font-bold">Current Voucher Code</p>
+            <p class="text-pink-200 text-base mt-1">Required to place test or real orders. Rotates every {{
+                (voucher_window // 60) }} min.</p>
         </div>
-      {% else %}
-        <div class="bg-gray-900 rounded-2xl p-12 text-center border border-gray-800">
-          <p class="text-gray-600 text-3xl">No orders yet</p>
-          <p class="text-gray-700 text-xl mt-2">Ask your AI agent to order!</p>
+        <div class="text-center">
+            <p class="voucher-code text-7xl font-black text-white">{{ voucher }}</p>
         </div>
-      {% endif %}
+        <div class="text-right">
+            <p class="text-pink-200 text-sm uppercase tracking-widest">Refreshes in</p>
+            <p id="countdown" data-seconds="{{ voucher_seconds }}"
+                class="text-4xl font-black text-pink-300 tabular-nums">
+                {{ '%d:%02d' % (voucher_seconds // 60, voucher_seconds % 60) }}
+            </p>
+        </div>
     </section>
 
-    <!-- Ready for pickup -->
-    <section>
-      <h2 class="text-4xl font-bold text-green-400 mb-5 flex items-center gap-3">
-        <span class="text-5xl">✅</span> Ready for Pickup!
-      </h2>
+    <!-- Order boards -->
+    <div class="grid grid-cols-2 gap-8 flex-1">
 
-      {% if ready %}
-        <div class="flex flex-col gap-4">
-          {% for order in ready %}
-          <div class="ready-card bg-green-950 border-2 border-green-500 rounded-2xl px-8 py-5 flex items-center justify-between">
-            <div>
-              <p class="text-5xl font-black leading-tight text-white">{{ order.customer_name }}</p>
-              <p class="text-green-300 text-2xl mt-1">{{ order.flavor_name }}</p>
+        <!-- Pending queue -->
+        <section>
+            <h2 class="text-4xl font-bold text-yellow-400 mb-5 flex items-center gap-3">
+                <span class="text-5xl">🕐</span> Preparing…
+            </h2>
+            {% if pending %}
+            <div class="flex flex-col gap-4">
+                {% for order in pending %}
+                <div
+                    class="bg-yellow-950 border border-yellow-700 rounded-2xl px-8 py-5 flex items-center justify-between">
+                    <div>
+                        <p class="text-4xl font-black leading-tight">{{ order.customer_name }}</p>
+                        <p class="text-yellow-300 text-2xl mt-1">{{ order.flavor_name }}</p>
+                    </div>
+                    <span class="bg-yellow-800 text-yellow-200 text-lg font-semibold px-5 py-2 rounded-full">In
+                        queue</span>
+                </div>
+                {% endfor %}
             </div>
-            <span class="text-6xl">🎉</span>
-          </div>
-          {% endfor %}
+            {% else %}
+            <div class="bg-gray-900 rounded-2xl p-12 text-center border border-gray-800">
+                <p class="text-gray-600 text-3xl">No orders yet</p>
+                <p class="text-gray-700 text-xl mt-2">Ask your AI agent to order!</p>
+            </div>
+            {% endif %}
+        </section>
+
+        <!-- Ready for pickup -->
+        <section>
+            <h2 class="text-4xl font-bold text-green-400 mb-5 flex items-center gap-3">
+                <span class="text-5xl">✅</span> Ready for Pickup!
+            </h2>
+            {% if ready %}
+            <div class="flex flex-col gap-4">
+                {% for order in ready %}
+                <div
+                    class="ready-card bg-green-950 border-2 border-green-500 rounded-2xl px-8 py-5 flex items-center justify-between">
+                    <div>
+                        <p class="text-5xl font-black leading-tight text-white">{{ order.customer_name }}</p>
+                        <p class="text-green-300 text-2xl mt-1">{{ order.flavor_name }}</p>
+                    </div>
+                    <span class="text-6xl">🎉</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="bg-gray-900 rounded-2xl p-12 text-center border border-gray-800">
+                <p class="text-gray-600 text-3xl">—</p>
+            </div>
+            {% endif %}
+        </section>
+    </div>
+
+    <!-- Test orders lane -->
+    <section class="bg-gray-900/60 border border-dashed border-sky-700/50 rounded-2xl px-6 py-4">
+        <h2 class="text-xl font-bold text-sky-300 mb-3 flex items-center gap-2">
+            <span>🧪</span> Test Orders
+            <span class="text-xs text-sky-500 font-normal">(no real cupcake — practice flow)</span>
+        </h2>
+        {% if tests %}
+        <div class="flex flex-wrap gap-2">
+            {% for order in tests %}
+            <div class="bg-sky-950/60 border border-sky-800 rounded-lg px-3 py-2 flex items-center gap-2 text-sm">
+                <span class="bg-sky-700 text-sky-100 text-[10px] font-bold uppercase px-2 py-0.5 rounded">Test</span>
+                <span class="text-sky-200 font-semibold">{{ order.customer_name }}</span>
+                <span class="text-sky-400">·</span>
+                <span class="text-sky-300">{{ order.flavor_name }}</span>
+            </div>
+            {% endfor %}
         </div>
-      {% else %}
-        <div class="bg-gray-900 rounded-2xl p-12 text-center border border-gray-800">
-          <p class="text-gray-600 text-3xl">—</p>
-        </div>
-      {% endif %}
+        {% else %}
+        <p class="text-gray-600 text-sm">No test orders yet.</p>
+        {% endif %}
     </section>
 
-  </div>
+    <!-- Footer -->
+    <footer class="text-center text-gray-700 text-lg">
+        Use your AI agent &nbsp;·&nbsp; One real cupcake per person &nbsp;·&nbsp; Voucher required
+        <span class="ml-6 text-gray-800">↻ auto-refresh every 10 s</span>
+    </footer>
 
-  <!-- Footer -->
-  <footer class="text-center text-gray-700 text-lg">
-    Use your AI agent &nbsp;·&nbsp; One cupcake per person &nbsp;·&nbsp; Say your name for pickup
-    <span class="ml-6 text-gray-800">↻ auto-refresh every 5 s</span>
-  </footer>
-
+    <script>
+            // Local countdown so the timer ticks between page reloads
+            (function () {
+                const el = document.getElementById('countdown');
+                if (!el) return;
+                let secs = parseInt(el.dataset.seconds, 10) || 0;
+                function fmt(s) {
+                    const m = Math.floor(s / 60), r = s % 60;
+                    return m + ':' + (r < 10 ? '0' : '') + r;
+                }
+                setInterval(() => {
+                    secs = Math.max(0, secs - 1);
+                    el.textContent = fmt(secs);
+                    if (secs === 0) location.reload();
+                }, 1000);
+            })();
+    </script>
 </body>
+
 </html>

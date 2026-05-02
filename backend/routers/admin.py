@@ -73,9 +73,11 @@ async def orders_page(request: Request, _: str = Depends(require_admin)):
     annotated = [
         {
             "id": o["RowKey"],
-            "customer_name": o["customer_name"],
+            "customer_name": o.get("customer_name", ""),
+            "customer_id": o.get("customer_id", ""),
             "flavor_name": flavors.get(o["flavor_id"], {}).get("name", o["flavor_id"]),
             "status": o["status"],
+            "kind": o.get("kind", "real"),
             "created_at": o.get("created_at", "")[:16].replace("T", " "),
         }
         for o in orders
@@ -249,3 +251,28 @@ async def change_password(
         storage.update_user_password(username, password)
         _flash(request, "success", f"Password for '{username}' updated.")
     return RedirectResponse(url="/admin/users", status_code=302)
+
+
+# ── Customers ─────────────────────────────────────────────────────────────────
+
+@router.get("/customers")
+async def customers_page(request: Request, _: str = Depends(require_admin)):
+    customers = sorted(
+        storage.list_customers(),
+        key=lambda c: c.get("created_at", ""),
+        reverse=True,
+    )
+    annotated = [
+        {
+            "customer_id": c["RowKey"],
+            "display_name": c.get("display_name", ""),
+            "real_orders_count": int(c.get("real_orders_count", 0)),
+            "created_at": c.get("created_at", "")[:16].replace("T", " "),
+        }
+        for c in customers
+    ]
+    return templates.TemplateResponse(
+        request,
+        "admin_customers.html",
+        context={"customers": annotated, "flash": _pop_flashes(request)},
+    )

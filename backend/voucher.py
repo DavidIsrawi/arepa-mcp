@@ -1,0 +1,53 @@
+"""Time-rotating voucher codes shown on the public dashboard.
+
+The voucher is derived from a secret + the current 3-minute time window,
+so anyone *looking at the dashboard right now* can read it, but it is
+useless a few minutes later. The previous window is also accepted as a
+grace period so codes copied just before rotation still work briefly.
+"""
+import hashlib
+import hmac
+import os
+import secrets
+import time
+
+WINDOW_SECONDS = 180  # 3 minutes
+
+# Crockford-ish: no 0, 1, I, L, O — easy to read off a screen.
+_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+_CODE_LENGTH = 6
+_SECRET_ENV = "VOUCHER_SECRET"
+
+
+def _secret() -> bytes:
+    s = os.environ.get(_SECRET_ENV)
+    if not s:
+        # Auto-generate a per-process secret on first use. Workshop-friendly:
+        # restarting the server rotates everyone's codes, which is fine.
+        s = secrets.token_hex(32)
+        os.environ[_SECRET_ENV] = s
+    return s.encode()
+
+
+def _code_for_window(window: int) -> str:
+    digest = hmac.new(_secret(), str(window).encode(), hashlib.sha256).digest()
+    return "".join(_ALPHABET[b % len(_ALPHABET)] for b in digest[:_CODE_LENGTH])
+
+
+def current_voucher() -> str:
+    return _code_for_window(int(time.time()) // WINDOW_SECONDS)
+
+
+def seconds_until_rotation() -> int:
+    now = int(time.time())
+    return WINDOW_SECONDS - (now % WINDOW_SECONDS)
+
+
+def is_valid_voucher(code: str) -> bool:
+    if not code:
+        return False
+    code = code.strip().upper().replace("-", "").replace(" ", "")
+    if len(code) != _CODE_LENGTH:
+        return False
+    w = int(time.time()) // WINDOW_SECONDS
+    return code in {_code_for_window(w), _code_for_window(w - 1)}
