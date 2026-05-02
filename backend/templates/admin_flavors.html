@@ -1,6 +1,6 @@
 {% extends "admin_base.html" %}
 {% block title %}Flavours{% endblock %}
-{% block nav_flavors %}underline decoration-pink-200{% endblock %}
+{% block nav_flavors %}underline decoration-slate-300{% endblock %}
 
 {% block content %}
 <div class="flex items-center justify-between mb-6">
@@ -9,12 +9,12 @@
 
 <!-- Add flavour form -->
 <details class="bg-white border border-gray-200 rounded-2xl shadow-sm mb-8">
-  <summary class="px-6 py-4 cursor-pointer font-semibold text-pink-600 hover:text-pink-700 select-none">
+  <summary class="px-6 py-4 cursor-pointer font-semibold text-slate-700 hover:text-slate-900 select-none">
     ＋ Add new flavour
   </summary>
   <div class="px-6 pb-6 pt-2 border-t border-gray-100">
-    <form method="post" action="/admin/flavors"
-      class="grid grid-cols-2 gap-4">
+    <form method="post" action="/admin/flavors" class="grid grid-cols-2 gap-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}" />
       <div>
         <label class="label">Name *</label>
         <input name="name" type="text" required placeholder="e.g. Chocolate Fudge" class="input" />
@@ -37,7 +37,7 @@
       </div>
       <div class="col-span-2 flex justify-end">
         <button type="submit"
-          class="bg-pink-500 hover:bg-pink-600 text-white font-semibold px-6 py-2 rounded-lg transition-colors">
+          class="bg-slate-800 hover:bg-slate-900 text-white font-semibold px-6 py-2 rounded-lg transition-colors">
           Add Flavour
         </button>
       </div>
@@ -67,8 +67,8 @@
 
         <!-- Inline stock update -->
         <td class="px-6 py-4">
-          <form method="post" action="/admin/flavors/{{ f.RowKey }}/edit"
-            class="flex items-center gap-1">
+          <form method="post" action="/admin/flavors/{{ f.RowKey }}/edit" class="flex items-center gap-1">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}" />
             <button name="stock" value="{{ [f.stock|int - 1, 0]|max }}" type="submit"
               class="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-gray-600 flex items-center justify-center transition-colors">−</button>
             <input name="stock" type="number" min="0" value="{{ f.stock|int }}"
@@ -86,11 +86,13 @@
               Edit details
             </summary>
             <div class="mt-2 p-4 bg-gray-50 rounded-xl border border-gray-200 min-w-72">
-              <form method="post" action="/admin/flavors/{{ f.RowKey }}/edit"
-                class="flex flex-col gap-3">
+              <form method="post" action="/admin/flavors/{{ f.RowKey }}/edit" class="flex flex-col gap-3">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}" />
                 <input name="name" type="text" value="{{ f.name }}" placeholder="Name" class="input" />
-                <input name="description" type="text" value="{{ f.description }}" placeholder="Description" class="input" />
-                <input name="price" type="number" step="0.01" min="0" value="{{ f.price|float }}" placeholder="Price" class="input" />
+                <input name="description" type="text" value="{{ f.description }}" placeholder="Description"
+                  class="input" />
+                <input name="price" type="number" step="0.01" min="0" value="{{ f.price|float }}" placeholder="Price"
+                  class="input" />
                 <input name="image_url" type="url" value="{{ f.image_url }}" placeholder="Image URL" class="input" />
                 <div class="flex gap-2 justify-end">
                   <button type="submit"
@@ -104,8 +106,8 @@
 
           <form method="post" action="/admin/flavors/{{ f.RowKey }}/delete" class="mt-1"
             onsubmit="return confirm('Delete {{ f.name }}?')">
-            <button type="submit"
-              class="text-red-500 hover:text-red-700 text-xs font-semibold">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}" />
+            <button type="submit" class="text-red-500 hover:text-red-700 text-xs font-semibold">
               Delete
             </button>
           </form>
@@ -124,8 +126,26 @@
 {% endif %}
 
 <style>
-  .label   { display:block; font-size:.75rem; font-weight:500; color:#374151; margin-bottom:.25rem; }
-  .input   { width:100%; border:1px solid #d1d5db; border-radius:.5rem; padding:.4rem .75rem; font-size:.875rem; outline:none; }
-  .input:focus { box-shadow:0 0 0 2px #f9a8d4; border-color:#ec4899; }
+  .label {
+    display: block;
+    font-size: .75rem;
+    font-weight: 500;
+    color: #374151;
+    margin-bottom: .25rem;
+  }
+
+  .input {
+    width: 100%;
+    border: 1px solid #d1d5db;
+    border-radius: .5rem;
+    padding: .4rem .75rem;
+    font-size: .875rem;
+    outline: none;
+  }
+
+  .input:focus {
+    box-shadow: 0 0 0 2px #cbd5e1;
+    border-color: #475569;
+  }
 </style>
 {% endblock %}

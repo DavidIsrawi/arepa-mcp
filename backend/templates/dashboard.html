@@ -3,179 +3,628 @@
 
 <head>
     <meta charset="UTF-8" />
-    <meta http-equiv="refresh" content="10" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>🧁 Cupcake Store</title>
+    <title>SPARKLES // ORDER TERMINAL</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: { extend: { fontFamily: { display: ['system-ui', 'sans-serif'] } } }
-        }
-    </script>
     <style>
-        @keyframes pulse-border {
+        :root {
+            --crt-bg: #0a0510;
+            --crt-pink: #ff7ce0;
+            /* brighter neon pink */
+            --crt-pink2: #ffd6f1;
+            /* near-white pink for body text */
+            --crt-cyan: #7ff3ff;
+            /* brighter cyan */
+            --crt-amber: #ffe27a;
+            /* brighter amber/yellow */
+            --crt-green: #8dffb5;
+            /* brighter mint green */
+            --crt-red: #ff8a8a;
+            /* brighter red */
+            --crt-dim: #c79be0;
+            /* lavender, still readable on a beamer */
+        }
+
+        html,
+        body {
+            background: var(--crt-bg);
+        }
+
+        body {
+            font-family: ui-monospace, "JetBrains Mono", "Fira Code",
+                SFMono-Regular, Menlo, Consolas, monospace;
+            color: var(--crt-pink2);
+            text-shadow: 0 0 6px rgba(255, 95, 210, 0.35);
+        }
+
+        /* Scanlines + vignette over everything (kept light so text stays bright) */
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background:
+                repeating-linear-gradient(to bottom,
+                    rgba(0, 0, 0, 0.10) 0px,
+                    rgba(0, 0, 0, 0.10) 1px,
+                    transparent 1px,
+                    transparent 3px),
+                radial-gradient(circle at center,
+                    rgba(255, 124, 224, 0.04),
+                    rgba(0, 0, 0, 0.35) 90%);
+            mix-blend-mode: multiply;
+            z-index: 50;
+        }
+
+        /* Subtle CRT flicker */
+        @keyframes flicker {
 
             0%,
             100% {
-                box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.6);
+                opacity: 1;
+            }
+
+            48% {
+                opacity: 1;
+            }
+
+            49% {
+                opacity: 0.92;
             }
 
             50% {
-                box-shadow: 0 0 0 16px rgba(74, 222, 128, 0);
+                opacity: 1;
+            }
+
+            97% {
+                opacity: 1;
+            }
+
+            98% {
+                opacity: 0.95;
+            }
+
+            99% {
+                opacity: 1;
             }
         }
 
-        .ready-card {
-            animation: pulse-border 2s ease-in-out infinite;
+        .crt {
+            animation: flicker 4s infinite;
         }
 
-        @keyframes voucher-glow {
+        /* Generic ASCII text block */
+        .ascii {
+            white-space: pre;
+            line-height: 1.05;
+        }
+
+        /* Glow helpers (slightly stronger glow, full-saturation core colour) */
+        .glow-pink {
+            color: var(--crt-pink);
+            text-shadow: 0 0 8px var(--crt-pink), 0 0 16px rgba(255, 124, 224, 0.7);
+        }
+
+        .glow-cyan {
+            color: var(--crt-cyan);
+            text-shadow: 0 0 8px var(--crt-cyan), 0 0 16px rgba(127, 243, 255, 0.7);
+        }
+
+        .glow-amber {
+            color: var(--crt-amber);
+            text-shadow: 0 0 8px var(--crt-amber), 0 0 16px rgba(255, 226, 122, 0.7);
+        }
+
+        .glow-green {
+            color: var(--crt-green);
+            text-shadow: 0 0 8px var(--crt-green), 0 0 16px rgba(141, 255, 181, 0.7);
+        }
+
+        .glow-red {
+            color: var(--crt-red);
+            text-shadow: 0 0 8px var(--crt-red), 0 0 16px rgba(255, 138, 138, 0.7);
+        }
+
+        .dim {
+            color: var(--crt-dim);
+            text-shadow: 0 0 4px rgba(199, 155, 224, 0.4);
+        }
+
+        /* Boxed "panel" with brighter borders for projector readability */
+        .panel {
+            border: 2px solid rgba(255, 124, 224, 0.65);
+            box-shadow:
+                inset 0 0 24px rgba(255, 124, 224, 0.10),
+                0 0 22px rgba(255, 124, 224, 0.18);
+            background:
+                linear-gradient(180deg, rgba(255, 124, 224, 0.05), rgba(0, 0, 0, 0)),
+                rgba(10, 5, 16, 0.6);
+        }
+
+        .panel-cyan {
+            border-color: rgba(127, 243, 255, 0.70);
+            box-shadow: inset 0 0 24px rgba(127, 243, 255, 0.10), 0 0 22px rgba(127, 243, 255, 0.20);
+        }
+
+        .panel-amber {
+            border-color: rgba(255, 226, 122, 0.70);
+            box-shadow: inset 0 0 24px rgba(255, 226, 122, 0.10), 0 0 22px rgba(255, 226, 122, 0.20);
+        }
+
+        .panel-green {
+            border-color: rgba(141, 255, 181, 0.75);
+            box-shadow: inset 0 0 24px rgba(141, 255, 181, 0.12), 0 0 26px rgba(141, 255, 181, 0.28);
+        }
+
+        .panel-title {
+            display: inline-block;
+            padding: 0 8px;
+            transform: translateY(-50%);
+            background: var(--crt-bg);
+            font-weight: 700;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            font-size: 14px;
+            white-space: nowrap;
+            max-width: calc(100% - 1rem);
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Voucher code – big, glowing, blinking caret */
+        @keyframes voucher-pulse {
 
             0%,
             100% {
-                text-shadow: 0 0 18px rgba(244, 114, 182, 0.6);
+                text-shadow: 0 0 14px var(--crt-pink), 0 0 30px rgba(255, 95, 210, 0.6);
             }
 
             50% {
-                text-shadow: 0 0 30px rgba(244, 114, 182, 1);
+                text-shadow: 0 0 22px var(--crt-pink), 0 0 50px rgba(255, 95, 210, 1);
             }
         }
 
         .voucher-code {
-            animation: voucher-glow 2.5s ease-in-out infinite;
-            letter-spacing: 0.4em;
+            color: #fff;
+            animation: voucher-pulse 2.4s ease-in-out infinite;
+            letter-spacing: 0.32em;
+        }
+
+        @keyframes blink {
+
+            0%,
+            49% {
+                opacity: 1;
+            }
+
+            50%,
+            100% {
+                opacity: 0;
+            }
+        }
+
+        .caret {
+            animation: blink 1s steps(1) infinite;
+        }
+
+        /* Marquee for the test feed */
+        @keyframes marquee {
+            0% {
+                transform: translateX(0);
+            }
+
+            100% {
+                transform: translateX(-50%);
+            }
+        }
+
+        .marquee-track {
+            display: inline-flex;
+            gap: 2.5rem;
+            animation: marquee 60s linear infinite;
+            white-space: nowrap;
+        }
+
+        /* Sparkles wordmark colours */
+        .ascii-wordmark {
+            color: var(--crt-pink);
+            text-shadow: 0 0 10px var(--crt-pink);
+            font-size: 11px;
+        }
+
+        .ascii-cupcake {
+            font-size: 11px;
+        }
+
+        .ascii-cupcake .frosting {
+            color: var(--crt-pink);
+            text-shadow: 0 0 8px var(--crt-pink);
+        }
+
+        .ascii-cupcake .wrapper {
+            color: var(--crt-cyan);
+            text-shadow: 0 0 8px var(--crt-cyan);
+        }
+
+        .ascii-cupcake .s1 {
+            color: var(--crt-red);
+        }
+
+        .ascii-cupcake .s2 {
+            color: var(--crt-amber);
+        }
+
+        .ascii-cupcake .s3 {
+            color: var(--crt-cyan);
+        }
+
+        /* Tile rows (3-up grid inside each lane). The first 3 tiles get the
+           .row-featured modifier: they span 1/2 of the lane and use a slightly
+           larger name font so the freshest orders pop. */
+        .lane-grid {
+            display: grid;
+            grid-template-columns: repeat(6, minmax(0, 1fr));
+            gap: 0.4rem 0.5rem;
+            padding: 0.4rem 0.5rem;
+            align-content: start;
+        }
+
+        .row-tile {
+            grid-column: span 2;
+            /* 1/3 width — compact tile */
+            display: grid;
+            grid-template-columns: 1.6rem 1fr auto;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.3rem 0.45rem;
+            border: 1px dashed rgba(255, 124, 224, 0.22);
+            border-radius: 4px;
+            min-width: 0;
+        }
+
+        .row-featured {
+            grid-column: span 3;
+            /* 1/2 width — featured tile */
+            padding: 0.5rem 0.7rem;
+            border-style: solid;
+            border-color: rgba(255, 124, 224, 0.35);
+        }
+
+        .row-featured .name-tt {
+            font-size: 1.25rem;
+            /* ~text-xl */
+            line-height: 1.15;
+        }
+
+        .row-featured .flavor-tt {
+            font-size: 0.75rem;
+            /* ~text-xs */
+        }
+
+        /* Picked-up: keep the row in place, just strike it through. */
+        .row-picked .name-tt,
+        .row-picked .flavor-tt {
+            text-decoration: line-through;
+            text-decoration-thickness: 2px;
+            text-decoration-color: rgba(141, 255, 181, 0.9);
+        }
+
+        /* Ready-lane name colour (extracted from inline style) */
+        .ready-name {
+            color: #fff;
+            text-shadow: 0 0 10px var(--crt-green);
+        }
+
+        /* Offline indicator state for the live status pill */
+        .offline {
+            color: var(--crt-red) !important;
+            text-shadow: 0 0 6px var(--crt-red) !important;
+        }
+
+        .name-tt {
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+
+        .truncate-tt {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* Hide scrollbars in lanes */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .no-scrollbar {
+            scrollbar-width: none;
         }
     </style>
 </head>
 
-<body class="bg-gray-950 text-white min-h-screen flex flex-col p-8 gap-6 font-display">
+<body class="h-screen overflow-hidden flex flex-col p-3 gap-3 crt">
 
-    <!-- Header -->
-    <header class="text-center">
-        <h1 class="text-7xl font-black tracking-tight text-pink-400 drop-shadow-lg">🧁 Cupcake Store</h1>
-        <p class="text-2xl text-gray-400 mt-2">Order via your AI agent &nbsp;·&nbsp; Pickup at the counter</p>
+    <!-- ── TOP BAR ──────────────────────────────────────────────────────── -->
+    <header class="panel rounded-md px-5 py-2 flex items-center justify-between gap-6 relative">
+        <span class="panel-title glow-pink absolute top-0 left-6">[ SPARKLES // ORDER TERMINAL ]</span>
+
+        <!-- ASCII logo -->
+        <div class="flex items-center gap-4 mt-1">
+            <pre class="ascii ascii-wordmark"> ____  ____   _    ____  _  ___     _____ ____
+/ ___||  _ \ / \  |  _ \| |/ / |   | ____/ ___|
+\___ \| |_) / _ \ | |_) | ' /| |   |  _| \___ \
+ ___) |  __/ ___ \|  _ <| . \| |___| |___ ___) |
+|____/|_| /_/   \_\_| \_\_|\_\_____|_____|____/</pre>
+            <pre class="ascii ascii-cupcake"><span class="frosting">       .~~~~~~~~~.</span>
+<span class="frosting">     ( <span class="s1">*</span> <span class="s2">.</span> <span class="s3">*</span> <span class="s1">.</span> <span class="s2">*</span> <span class="s3">.</span> )</span>
+<span class="wrapper">      |~~~~~~~~~~~|</span>
+<span class="wrapper">      \|||||||||||/</span>
+<span class="wrapper">       \_________/</span></pre>
+        </div>
+
+        <!-- Voucher code -->
+        <div class="flex items-center gap-5 mt-1">
+            <div class="text-right leading-tight">
+                <p class="text-[11px] tracking-[0.3em] glow-pink">&gt; VOUCHER</p>
+                <p class="text-[10px] dim">rotates / {{ (voucher_window // 60) }}m</p>
+            </div>
+            <p id="voucher-code" class="voucher-code text-6xl font-black tabular-nums">{{ voucher }}<span
+                    class="caret glow-pink">_</span>
+            </p>
+            <div class="text-left leading-tight pl-4 border-l border-pink-500/30">
+                <p class="text-[11px] tracking-[0.3em] glow-pink">REFRESH</p>
+                <p id="countdown" data-seconds="{{ voucher_seconds }}"
+                    class="text-2xl font-black tabular-nums glow-pink">
+                    {{ '%d:%02d' % (voucher_seconds // 60, voucher_seconds % 60) }}
+                </p>
+            </div>
+        </div>
     </header>
 
-    <!-- Voucher panel -->
-    <section
-        class="bg-gradient-to-r from-pink-900 via-fuchsia-900 to-pink-900 border border-pink-500/40 rounded-3xl px-10 py-6 flex items-center justify-between shadow-2xl">
-        <div>
-            <p class="uppercase tracking-widest text-pink-300 text-sm font-bold">Current Voucher Code</p>
-            <p class="text-pink-200 text-base mt-1">Required to place test or real orders. Rotates every {{
-                (voucher_window // 60) }} min.</p>
-        </div>
-        <div class="text-center">
-            <p class="voucher-code text-7xl font-black text-white">{{ voucher }}</p>
-        </div>
-        <div class="text-right">
-            <p class="text-pink-200 text-sm uppercase tracking-widest">Refreshes in</p>
-            <p id="countdown" data-seconds="{{ voucher_seconds }}"
-                class="text-4xl font-black text-pink-300 tabular-nums">
-                {{ '%d:%02d' % (voucher_seconds // 60, voucher_seconds % 60) }}
-            </p>
-        </div>
-    </section>
+    <!-- ── 3 LANES ─────────────────────────────────────────────────────── -->
+    <div class="grid grid-cols-3 gap-3 flex-1 min-h-0">
 
-    <!-- Order boards -->
-    <div class="grid grid-cols-2 gap-8 flex-1">
-
-        <!-- Pending queue -->
-        <section>
-            <h2 class="text-4xl font-bold text-yellow-400 mb-5 flex items-center gap-3">
-                <span class="text-5xl">🕐</span> Preparing…
-            </h2>
-            {% if pending %}
-            <div class="flex flex-col gap-4">
-                {% for order in pending %}
-                <div
-                    class="bg-yellow-950 border border-yellow-700 rounded-2xl px-8 py-5 flex items-center justify-between">
-                    <div>
-                        <p class="text-4xl font-black leading-tight">{{ order.customer_name }}</p>
-                        <p class="text-yellow-300 text-2xl mt-1">{{ order.flavor_name }}</p>
+        <!-- Tests -->
+        <section id="lane-tests" class="panel panel-cyan rounded-md relative pt-4 pb-1 flex flex-col min-h-0">
+            <span class="panel-title glow-cyan absolute top-0 left-5">[ TEST FEED // <span class="lane-count">{{
+                    totals.tests }}</span> ]</span>
+            <div class="flex-1 min-h-0 overflow-hidden no-scrollbar lane-grid lane-body">
+                {% for order in tests %}
+                <div data-id="{{ order.id }}" class="row-tile{% if loop.index <= 6 %} row-featured{% endif %}">
+                    <span class="glow-cyan text-base">✓</span>
+                    <div class="min-w-0">
+                        <p class="name-tt text-base truncate-tt glow-cyan leading-tight">{{ order.customer_name }}</p>
+                        <p class="flavor-tt text-[10px] truncate-tt dim leading-tight">&gt; {{ order.flavor_name }}</p>
                     </div>
-                    <span class="bg-yellow-800 text-yellow-200 text-lg font-semibold px-5 py-2 rounded-full">In
-                        queue</span>
                 </div>
                 {% endfor %}
             </div>
-            {% else %}
-            <div class="bg-gray-900 rounded-2xl p-12 text-center border border-gray-800">
-                <p class="text-gray-600 text-3xl">No orders yet</p>
-                <p class="text-gray-700 text-xl mt-2">Ask your AI agent to order!</p>
-            </div>
-            {% endif %}
         </section>
 
-        <!-- Ready for pickup -->
-        <section>
-            <h2 class="text-4xl font-bold text-green-400 mb-5 flex items-center gap-3">
-                <span class="text-5xl">✅</span> Ready for Pickup!
-            </h2>
-            {% if ready %}
-            <div class="flex flex-col gap-4">
-                {% for order in ready %}
-                <div
-                    class="ready-card bg-green-950 border-2 border-green-500 rounded-2xl px-8 py-5 flex items-center justify-between">
-                    <div>
-                        <p class="text-5xl font-black leading-tight text-white">{{ order.customer_name }}</p>
-                        <p class="text-green-300 text-2xl mt-1">{{ order.flavor_name }}</p>
+        <!-- Preparing -->
+        <section id="lane-pending" class="panel panel-amber rounded-md relative pt-4 pb-1 flex flex-col min-h-0">
+            <span class="panel-title glow-amber absolute top-0 left-5">[ PREPARING // <span class="lane-count">{{
+                    totals.pending }}</span> ]</span>
+            <div class="flex-1 min-h-0 overflow-hidden no-scrollbar lane-grid lane-body">
+                {% for order in pending %}
+                <div data-id="{{ order.id }}" class="row-tile{% if loop.index <= 6 %} row-featured{% endif %}">
+                    <span class="glow-amber text-base">·</span>
+                    <div class="min-w-0">
+                        <p class="name-tt text-base truncate-tt glow-amber leading-tight">{{ order.customer_name }}</p>
+                        <p class="flavor-tt text-[10px] truncate-tt dim leading-tight">&gt; {{ order.flavor_name }}</p>
                     </div>
-                    <span class="text-6xl">🎉</span>
                 </div>
                 {% endfor %}
             </div>
-            {% else %}
-            <div class="bg-gray-900 rounded-2xl p-12 text-center border border-gray-800">
-                <p class="text-gray-600 text-3xl">—</p>
+        </section>
+
+        <!-- Ready -->
+        <section id="lane-ready" class="panel panel-green rounded-md relative pt-4 pb-1 flex flex-col min-h-0">
+            <span class="panel-title glow-green absolute top-0 left-5">[ READY FOR PICKUP // <span class="lane-count">{{
+                    totals.ready }}</span> ] [ PICKED // <span class="lane-picked">{{
+                    totals.picked }}</span> ]</span>
+            <div class="flex-1 min-h-0 overflow-hidden no-scrollbar lane-grid lane-body">
+                {% for order in ready %}
+                <div data-id="{{ order.id }}"
+                    class="row-tile{% if loop.index <= 6 %} row-featured{% endif %}{% if order.picked_up %} row-picked{% endif %}">
+                    <span class="glow-green text-base row-icon">{% if order.picked_up %}✓{% else %}»{% endif %}</span>
+                    <div class="min-w-0 flex-1">
+                        <p class="name-tt text-base truncate-tt leading-tight ready-name">{{ order.customer_name }}</p>
+                        <p class="flavor-tt text-[10px] truncate-tt glow-green leading-tight">&gt; {{ order.flavor_name
+                            }}</p>
+                    </div>
+                </div>
+                {% endfor %}
             </div>
-            {% endif %}
         </section>
     </div>
 
-    <!-- Test orders lane -->
-    <section class="bg-gray-900/60 border border-dashed border-sky-700/50 rounded-2xl px-6 py-4">
-        <h2 class="text-xl font-bold text-sky-300 mb-3 flex items-center gap-2">
-            <span>🧪</span> Test Orders
-            <span class="text-xs text-sky-500 font-normal">(no real cupcake — practice flow)</span>
-        </h2>
-        {% if tests %}
-        <div class="flex flex-wrap gap-2">
-            {% for order in tests %}
-            <div class="bg-sky-950/60 border border-sky-800 rounded-lg px-3 py-2 flex items-center gap-2 text-sm">
-                <span class="bg-sky-700 text-sky-100 text-[10px] font-bold uppercase px-2 py-0.5 rounded">Test</span>
-                <span class="text-sky-200 font-semibold">{{ order.customer_name }}</span>
-                <span class="text-sky-400">·</span>
-                <span class="text-sky-300">{{ order.flavor_name }}</span>
+    <!-- ── STATUS BAR (marquee) ─────────────────────────────────────────── -->
+    <footer class="panel rounded-md px-3 py-1 overflow-hidden">
+        <div class="flex items-center gap-3 text-xs">
+            <span class="glow-pink whitespace-nowrap">[ STATUS ]</span>
+            <div class="flex-1 overflow-hidden">
+                <div class="marquee-track">
+                    {% for _ in range(2) %}
+                    <span class="dim">SPARKLES v1.0</span>
+                    <span class="glow-pink">●</span>
+                    <span class="dim">order via your AI agent</span>
+                    <span class="glow-pink">●</span>
+                    <span class="dim">one real cupcake per person</span>
+                    <span class="glow-pink">●</span>
+                    <span class="dim">voucher rotates every {{ voucher_window // 60 }}m</span>
+                    <span class="glow-pink">●</span>
+                    <span class="dim">listen for your name</span>
+                    <span class="glow-pink">●</span>
+                    <span class="dim">hand in voucher at pickup</span>
+                    <span class="glow-pink">●</span>
+                    <span class="dim">be kind to the baker</span>
+                    <span class="glow-pink">●</span>
+                    {% endfor %}
+                </div>
             </div>
-            {% endfor %}
+            <span id="live-pill" class="dim whitespace-nowrap">↻ live</span>
         </div>
-        {% else %}
-        <p class="text-gray-600 text-sm">No test orders yet.</p>
-        {% endif %}
-    </section>
-
-    <!-- Footer -->
-    <footer class="text-center text-gray-700 text-lg">
-        Use your AI agent &nbsp;·&nbsp; One real cupcake per person &nbsp;·&nbsp; Voucher required
-        <span class="ml-6 text-gray-800">↻ auto-refresh every 10 s</span>
     </footer>
 
     <script>
-            // Local countdown so the timer ticks between page reloads
-            (function () {
-                const el = document.getElementById('countdown');
-                if (!el) return;
-                let secs = parseInt(el.dataset.seconds, 10) || 0;
-                function fmt(s) {
-                    const m = Math.floor(s / 60), r = s % 60;
-                    return m + ':' + (r < 10 ? '0' : '') + r;
+        // ── Live dashboard updater ───────────────────────────────────────
+        // Polls /dashboard/data every few seconds and patches the lanes,
+        // voucher code and rotation countdown in place. No full page reloads.
+        (function () {
+            const POLL_MS = 3000;
+            const FEATURED_COUNT = 6;
+            const OFFLINE_AFTER = 2;   // consecutive failed polls
+
+            const $voucher = document.getElementById('voucher-code');
+            const $voucherCaret = $voucher?.querySelector('.caret') ?? null;
+            const $countdown = document.getElementById('countdown');
+            const $livePill = document.getElementById('live-pill');
+            const lanes = {
+                pending: document.getElementById('lane-pending'),
+                ready: document.getElementById('lane-ready'),
+                tests: document.getElementById('lane-tests'),
+            };
+            const $picked = document.querySelector('#lane-ready .lane-picked');
+
+            // Local 1Hz countdown so the timer ticks smoothly between polls.
+            let secs = parseInt($countdown?.dataset.seconds, 10) || 0;
+            function fmt(s) {
+                const m = Math.floor(s / 60), r = s % 60;
+                return m + ':' + (r < 10 ? '0' : '') + r;
+            }
+            setInterval(() => {
+                secs = Math.max(0, secs - 1);
+                if ($countdown) $countdown.textContent = fmt(secs);
+            }, 1000);
+
+            const HTML_ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+            const escapeHtml = (s) =>
+                String(s ?? '').replace(/[&<>"']/g, (c) => HTML_ESC[c]);
+
+            function tile(kind, order, idx) {
+                const name = escapeHtml(order.customer_name);
+                const flavor = escapeHtml(order.flavor_name);
+                const id = escapeHtml(order.id ?? '');
+                const featured = idx < FEATURED_COUNT ? ' row-featured' : '';
+                if (kind === 'pending') {
+                    return `
+                        <div data-id="${id}" class="row-tile${featured}">
+                            <span class="glow-amber text-base">·</span>
+                            <div class="min-w-0">
+                                <p class="name-tt text-base truncate-tt glow-amber leading-tight">${name}</p>
+                                <p class="flavor-tt text-[10px] truncate-tt dim leading-tight">&gt; ${flavor}</p>
+                            </div>
+                        </div>`;
                 }
-                setInterval(() => {
-                    secs = Math.max(0, secs - 1);
-                    el.textContent = fmt(secs);
-                    if (secs === 0) location.reload();
-                }, 1000);
-            })();
+                if (kind === 'ready') {
+                    const picked = order.picked_up ? ' row-picked' : '';
+                    const icon = order.picked_up ? '✓' : '»';
+                    return `
+                        <div data-id="${id}" class="row-tile${featured}${picked}">
+                            <span class="glow-green text-base row-icon">${icon}</span>
+                            <div class="min-w-0 flex-1">
+                                <p class="name-tt text-base truncate-tt leading-tight ready-name">${name}</p>
+                                <p class="flavor-tt text-[10px] truncate-tt glow-green leading-tight">&gt; ${flavor}</p>
+                            </div>
+                        </div>`;
+                }
+                // tests
+                return `
+                    <div data-id="${id}" class="row-tile${featured}">
+                        <span class="glow-cyan text-base">✓</span>
+                        <div class="min-w-0">
+                            <p class="name-tt text-base truncate-tt glow-cyan leading-tight">${name}</p>
+                            <p class="flavor-tt text-[10px] truncate-tt dim leading-tight">&gt; ${flavor}</p>
+                        </div>
+                    </div>`;
+            }
+
+            function emptyState(kind) {
+                const cls = { pending: 'glow-amber', ready: 'glow-green', tests: 'glow-cyan' }[kind];
+                const lines = {
+                    pending: ['&gt; queue empty', '&gt; awaiting orders'],
+                    ready: ['&gt; nothing ready yet', '&gt; standby'],
+                    tests: ['&gt; no test orders', '&gt; agents idle'],
+                }[kind];
+                return `
+                    <div class="flex-1 flex items-center justify-center w-full h-full">
+                        <p class="ascii dim text-center">
+${lines[0]}
+${lines[1]}<span class="caret ${cls}">_</span>
+                        </p>
+                    </div>`;
+            }
+
+            function renderLane(kind, orders, total) {
+                const section = lanes[kind];
+                if (!section) return;
+                const countEl = section.querySelector('.lane-count');
+                if (countEl) countEl.textContent = (total ?? orders.length);
+
+                const body = section.querySelector('.lane-body');
+                if (!body) return;
+                if (!orders.length) {
+                    body.classList.remove('lane-grid');
+                    body.classList.add('flex');
+                    body.innerHTML = emptyState(kind);
+                    return;
+                }
+                body.classList.add('lane-grid');
+                body.classList.remove('flex');
+                body.innerHTML = orders.map((o, i) => tile(kind, o, i)).join('');
+            }
+
+            function updateVoucher(code) {
+                if (!$voucher || typeof code !== 'string') return;
+                // Reset to "<text><caret>" without touching the caret element.
+                while ($voucher.firstChild && $voucher.firstChild !== $voucherCaret) {
+                    $voucher.removeChild($voucher.firstChild);
+                }
+                $voucher.insertBefore(document.createTextNode(code), $voucherCaret);
+            }
+
+            function setOnline(ok) {
+                if (!$livePill) return;
+                if (ok) {
+                    $livePill.classList.remove('offline');
+                    $livePill.textContent = '↻ live';
+                } else {
+                    $livePill.classList.add('offline');
+                    $livePill.textContent = '⚠ offline';
+                }
+            }
+
+            let failures = 0;
+
+            async function poll() {
+                try {
+                    const r = await fetch('/dashboard/data', { cache: 'no-store' });
+                    if (!r.ok) throw new Error('http ' + r.status);
+                    const data = await r.json();
+
+                    updateVoucher(data.voucher);
+                    if (typeof data.voucher_seconds === 'number') {
+                        secs = data.voucher_seconds;
+                        if ($countdown) $countdown.textContent = fmt(secs);
+                    }
+                    renderLane('pending', data.pending || [], data.totals?.pending);
+                    renderLane('ready', data.ready || [], data.totals?.ready);
+                    renderLane('tests', data.tests || [], data.totals?.tests);
+                    if ($picked && data.totals) $picked.textContent = data.totals.picked ?? 0;
+
+                    failures = 0;
+                    setOnline(true);
+                } catch (e) {
+                    failures += 1;
+                    if (failures >= OFFLINE_AFTER) setOnline(false);
+                }
+            }
+
+            poll();
+            setInterval(poll, POLL_MS);
+        })();
     </script>
 </body>
 

@@ -1,0 +1,229 @@
+{% extends "admin_base.html" %}
+{% block title %}{% if mode == 'preparing' %}Preparing{% else %}Pickup{% endif %}{% endblock %}
+{% if mode == 'preparing' %}
+{% block nav_preparing %}underline decoration-slate-300{% endblock %}
+{% else %}
+{% block nav_pickup %}underline decoration-slate-300{% endblock %}
+{% endif %}
+
+{% block content %}
+{% set is_prep = (mode == 'preparing') %}
+{% set title = 'Preparing' if is_prep else 'Pickup' %}
+{% set primary_label = 'Mark Ready' if is_prep else 'Picked Up' %}
+{% set primary_action = 'ready' if is_prep else 'collected' %}
+{% set primary_class = 'bg-emerald-600 hover:bg-emerald-700' if is_prep else 'bg-indigo-600 hover:bg-indigo-700' %}
+
+<div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold text-gray-800">{{ title }}</h1>
+    <div class="text-sm text-gray-500">
+        <span id="queue-count">{{ orders|length }}</span> in queue
+        · <span id="queue-status" class="text-gray-400">live</span>
+    </div>
+</div>
+
+{# ---- Live stock strip ------------------------------------------------- #}
+<div id="stock-strip"
+    class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 mb-4 grid gap-3"
+    style="grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));">
+    {% for f in stock %}
+    <div class="stock-tile flex flex-col items-center justify-center text-center px-2 py-2 rounded-lg border border-gray-100 bg-gray-50"
+        data-id="{{ f.id }}">
+        <div class="stock-num text-3xl font-extrabold leading-none
+            {% if f.stock <= 0 %}text-red-600{% elif f.stock <= 3 %}text-amber-600{% else %}text-gray-800{% endif %}">
+            {{ f.stock }}
+        </div>
+        <div class="stock-name text-xs text-gray-500 mt-1 truncate w-full" title="{{ f.name }}">{{ f.name }}</div>
+    </div>
+    {% endfor %}
+</div>
+
+<div id="queue" class="space-y-2" data-mode="{{ mode }}"
+    data-time-field="{{ 'ready_at' if not is_prep else 'created_at' }}" data-primary-action="{{ primary_action }}"
+    data-primary-label="{{ primary_label }}" data-primary-class="{{ primary_class }}">
+    {# Initial server-rendered list. JS will replace this on every poll. #}
+    {% if not orders %}
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-12 text-center text-gray-400">
+        Nothing here. {% if is_prep %}Waiting for new orders…{% else %}No cupcakes ready for pickup.{% endif %}
+    </div>
+    {% else %}
+    {% for o in orders %}
+    <div class="row bg-white rounded-xl shadow-sm border border-gray-200 px-5 py-4 flex items-center gap-4"
+        data-id="{{ o.id }}">
+        <div class="flex-1 min-w-0">
+            <div class="font-semibold text-gray-800 truncate">{{ o.customer_name }}</div>
+            <div class="text-sm text-gray-500 truncate">{{ o.flavor_name }}</div>
+        </div>
+        <div class="time text-xs text-gray-400 whitespace-nowrap"
+            data-iso="{{ (o.ready_at if not is_prep else o.created_at) }}">…</div>
+        <div class="flex gap-2">
+            <button class="btn-primary {{ primary_class }} text-white text-sm font-semibold px-4 py-2 rounded-lg">
+                {{ primary_label }}
+            </button>
+            <button
+                class="btn-cancel bg-white hover:bg-red-50 border border-red-300 text-red-700 text-sm font-semibold px-4 py-2 rounded-lg">
+                Cancel
+            </button>
+        </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+</div>
+
+<script>
+    (function () {
+        const queue = document.getElementById('queue');
+        const countEl = document.getElementById('queue-count');
+        const statusEl = document.getElementById('queue-status');
+        const mode = queue.dataset.mode;
+        const timeField = queue.dataset.timeField;
+        const primaryAction = queue.dataset.primaryAction;
+        const primaryLabel = queue.dataset.primaryLabel;
+        const primaryClass = queue.dataset.primaryClass;
+        const POLL_MS = 4000;
+
+        const HTML_ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+        const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => HTML_ESC[c]);
+
+        function timeAgo(iso) {
+            if (!iso) return '';
+            const t = Date.parse(iso);
+            if (isNaN(t)) return '';
+            const s = Math.max(0, Math.floor((Date.now() - t) / 1000));
+            let val;
+            if (s < 60) val = s + ' sec';
+            else if (s < 3600) val = Math.floor(s / 60) + ' min';
+            else if (s < 86400) val = Math.floor(s / 3600) + ' h';
+            else val = Math.floor(s / 86400) + ' d';
+            return mode === 'pickup' ? 'Ready for ' + val : val + ' ago';
+        }
+
+        function renderRow(o) {
+            const iso = timeField === 'ready_at' ? (o.ready_at || o.created_at || '') : (o.created_at || '');
+            return `
+        <div class="row bg-white rounded-xl shadow-sm border border-gray-200 px-5 py-4 flex items-center gap-4"
+             data-id="${esc(o.id)}">
+          <div class="flex-1 min-w-0">
+            <div class="font-semibold text-gray-800 truncate">${esc(o.customer_name)}</div>
+            <div class="text-sm text-gray-500 truncate">${esc(o.flavor_name)}</div>
+          </div>
+          <div class="time text-xs text-gray-400 whitespace-nowrap" data-iso="${esc(iso)}">${esc(timeAgo(iso))}</div>
+          <div class="flex gap-2">
+            <button class="btn-primary ${primaryClass} text-white text-sm font-semibold px-4 py-2 rounded-lg">
+              ${esc(primaryLabel)}
+            </button>
+            <button class="btn-cancel bg-white hover:bg-red-50 border border-red-300 text-red-700 text-sm font-semibold px-4 py-2 rounded-lg">
+              Cancel
+            </button>
+          </div>
+        </div>`;
+        }
+
+        function renderEmpty() {
+            const msg = mode === 'preparing'
+                ? 'Nothing here. Waiting for new orders…'
+                : 'No cupcakes ready for pickup.';
+            return `<div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-12 text-center text-gray-400">${msg}</div>`;
+        }
+
+        function paint(orders) {
+            countEl.textContent = orders.length;
+            if (!orders.length) {
+                queue.innerHTML = renderEmpty();
+                return;
+            }
+            queue.innerHTML = orders.map(renderRow).join('');
+        }
+
+        function tickRelativeTimes() {
+            queue.querySelectorAll('.time').forEach((el) => {
+                el.textContent = timeAgo(el.dataset.iso);
+            });
+        }
+
+        const stockStrip = document.getElementById('stock-strip');
+        function paintStock(stock) {
+            if (!stockStrip || !stock) return;
+            stockStrip.innerHTML = stock.map((f) => {
+                const cls = f.stock <= 0 ? 'text-red-600'
+                    : f.stock <= 3 ? 'text-amber-600'
+                        : 'text-gray-800';
+                return `
+                <div class="stock-tile flex flex-col items-center justify-center text-center px-2 py-2 rounded-lg border border-gray-100 bg-gray-50" data-id="${esc(f.id)}">
+                    <div class="stock-num text-3xl font-extrabold leading-none ${cls}">${esc(f.stock)}</div>
+                    <div class="stock-name text-xs text-gray-500 mt-1 truncate w-full" title="${esc(f.name)}">${esc(f.name)}</div>
+                </div>`;
+            }).join('');
+        }
+
+        let failures = 0;
+        async function poll() {
+            try {
+                const r = await fetch('/admin/' + mode + '/data', { cache: 'no-store' });
+                if (r.status === 401) { window.location = '/admin/login'; return; }
+                if (!r.ok) throw new Error('http ' + r.status);
+                const data = await r.json();
+                paint(data.orders || []);
+                paintStock(data.stock);
+                failures = 0;
+                statusEl.textContent = 'live';
+                statusEl.classList.remove('text-red-600');
+                statusEl.classList.add('text-gray-400');
+            } catch (e) {
+                failures += 1;
+                if (failures >= 2) {
+                    statusEl.textContent = 'offline';
+                    statusEl.classList.remove('text-gray-400');
+                    statusEl.classList.add('text-red-600');
+                }
+            }
+        }
+
+        async function act(orderId, action, btn) {
+            const row = btn.closest('.row');
+            // Disable both buttons, fade row.
+            row.querySelectorAll('button').forEach((b) => (b.disabled = true));
+            row.classList.add('opacity-50', 'pointer-events-none');
+            try {
+                const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+                const r = await fetch(`/admin/orders/${encodeURIComponent(orderId)}/${action}`, {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-Token': csrf },
+                });
+                if (r.status === 401) { window.location = '/admin/login'; return; }
+                if (!r.ok) throw new Error('http ' + r.status);
+                // Optimistic remove; the next poll will reconcile if anything changed.
+                row.style.transition = 'opacity .25s, transform .25s';
+                row.style.opacity = '0';
+                row.style.transform = 'translateX(20px)';
+                setTimeout(() => {
+                    row.remove();
+                    countEl.textContent = queue.querySelectorAll('.row').length;
+                    if (!queue.querySelector('.row')) queue.innerHTML = renderEmpty();
+                }, 220);
+            } catch (e) {
+                row.classList.remove('opacity-50', 'pointer-events-none');
+                row.querySelectorAll('button').forEach((b) => (b.disabled = false));
+                statusEl.textContent = 'action failed';
+                statusEl.classList.add('text-red-600');
+            }
+        }
+
+        queue.addEventListener('click', (ev) => {
+            const btn = ev.target.closest('button');
+            if (!btn) return;
+            const row = btn.closest('.row');
+            if (!row) return;
+            const id = row.dataset.id;
+            if (btn.classList.contains('btn-primary')) act(id, primaryAction, btn);
+            else if (btn.classList.contains('btn-cancel')) {
+                if (confirm('Cancel this order? Stock will be added back.')) act(id, 'cancel', btn);
+            }
+        });
+
+        // Initial paint of relative times, then live updates.
+        tickRelativeTimes();
+        setInterval(tickRelativeTimes, 5000);
+        setInterval(poll, POLL_MS);
+    })();
+</script>
+{% endblock %}

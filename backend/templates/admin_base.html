@@ -4,27 +4,31 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{% block title %}Admin{% endblock %} — Cupcake Store</title>
+  <meta name="csrf-token" content="{{ csrf_token(request) }}" />
+  <title>{% block title %}Admin{% endblock %} — Sparkles</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 
 <body class="bg-gray-50 min-h-screen">
 
   <!-- Top nav -->
-  <nav class="bg-pink-600 text-white shadow-md sticky top-0 z-10">
+  <nav class="bg-slate-800 text-white shadow-md sticky top-0 z-10">
     <div class="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
       <a href="/admin/orders" class="text-xl font-bold flex items-center gap-2">
         🧁 <span>Cupcake Admin</span>
       </a>
       <div class="flex items-center gap-6 text-sm font-medium">
-        <a href="/admin/orders" class="hover:text-pink-200 {% block nav_orders %}{% endblock %}">Orders</a>
-        <a href="/admin/flavors" class="hover:text-pink-200 {% block nav_flavors %}{% endblock %}">Flavors</a>
-        <a href="/admin/customers" class="hover:text-pink-200 {% block nav_customers %}{% endblock %}">Customers</a>
-        <a href="/admin/users" class="hover:text-pink-200 {% block nav_users %}{% endblock %}">Users</a>
-        <a href="/dashboard" target="_blank" class="hover:text-pink-200 border border-pink-400 rounded px-3 py-1">📺
+        <a href="/admin/preparing" class="hover:text-slate-300 {% block nav_preparing %}{% endblock %}">Preparing</a>
+        <a href="/admin/pickup" class="hover:text-slate-300 {% block nav_pickup %}{% endblock %}">Pickup</a>
+        <a href="/admin/orders" class="hover:text-slate-300 {% block nav_orders %}{% endblock %}">Orders</a>
+        <a href="/admin/flavors" class="hover:text-slate-300 {% block nav_flavors %}{% endblock %}">Flavors</a>
+        <a href="/admin/customers" class="hover:text-slate-300 {% block nav_customers %}{% endblock %}">Customers</a>
+        <a href="/admin/users" class="hover:text-slate-300 {% block nav_users %}{% endblock %}">Users</a>
+        <a href="/dashboard" target="_blank" class="hover:text-slate-300 border border-slate-500 rounded px-3 py-1">📺
           Dashboard</a>
         <form method="post" action="/admin/logout">
-          <button type="submit" class="bg-pink-800 hover:bg-pink-900 px-3 py-1 rounded transition-colors">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}" />
+          <button type="submit" class="bg-slate-700 hover:bg-slate-900 px-3 py-1 rounded transition-colors">
             Logout
           </button>
         </form>

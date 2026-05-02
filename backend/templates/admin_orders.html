@@ -1,11 +1,12 @@
 {% extends "admin_base.html" %}
 {% block title %}Orders{% endblock %}
-{% block nav_orders %}underline decoration-pink-200{% endblock %}
+{% block nav_orders %}underline decoration-slate-300{% endblock %}
 
 {% block content %}
 <div class="flex items-center justify-between mb-6">
   <h1 class="text-2xl font-bold text-gray-800">Orders</h1>
   <form method="post" action="/admin/reset" onsubmit="return confirm('Clear ALL orders? This cannot be undone.')">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}" />
     <button type="submit"
       class="bg-red-500 hover:bg-red-600 text-white text-sm font-semibold px-5 py-2 rounded-lg transition-colors">
       🗑 Clear All Orders
@@ -14,6 +15,58 @@
 </div>
 
 {% if orders %}
+{# ─── Quick filters (client-side, no reload) ──────────────────────────── #}
+{% set ns = namespace(pending=0, ready=0, collected=0, cancelled=0, real=0, test=0) %}
+{% for o in orders %}
+{% if o.status == 'pending' %}{% set ns.pending = ns.pending + 1 %}
+{% elif o.status == 'ready' %}{% set ns.ready = ns.ready + 1 %}
+{% elif o.status == 'cancelled' %}{% set ns.cancelled = ns.cancelled + 1 %}
+{% else %}{% set ns.collected = ns.collected + 1 %}{% endif %}
+{% if o.kind == 'test' %}{% set ns.test = ns.test + 1 %}{% else %}{% set ns.real = ns.real + 1 %}{% endif %}
+{% endfor %}
+
+<div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-3 mb-4 flex flex-wrap gap-2 items-center">
+  <span class="text-xs uppercase tracking-wider text-gray-500 mr-2">Status</span>
+  <button type="button" data-filter-status="all"
+    class="filter-btn active bg-slate-800 text-white text-xs font-semibold px-3 py-1.5 rounded-full">All
+    ({{ orders|length }})</button>
+  <button type="button" data-filter-status="pending"
+    class="filter-btn bg-yellow-100 hover:bg-yellow-200 text-yellow-800 text-xs font-semibold px-3 py-1.5 rounded-full">Pending
+    ({{ ns.pending }})</button>
+  <button type="button" data-filter-status="ready"
+    class="filter-btn bg-green-100 hover:bg-green-200 text-green-800 text-xs font-semibold px-3 py-1.5 rounded-full">Ready
+    ({{ ns.ready }})</button>
+  <button type="button" data-filter-status="collected"
+    class="filter-btn bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold px-3 py-1.5 rounded-full">Collected
+    ({{ ns.collected }})</button>
+  <button type="button" data-filter-status="cancelled"
+    class="filter-btn bg-red-100 hover:bg-red-200 text-red-700 text-xs font-semibold px-3 py-1.5 rounded-full">Cancelled
+    ({{ ns.cancelled }})</button>
+
+  <span class="w-px h-6 bg-gray-200 mx-2"></span>
+
+  <span class="text-xs uppercase tracking-wider text-gray-500 mr-2">Kind</span>
+  <button type="button" data-filter-kind="all"
+    class="filter-btn-kind active bg-slate-800 text-white text-xs font-semibold px-3 py-1.5 rounded-full">All</button>
+  <button type="button" data-filter-kind="real"
+    class="filter-btn-kind bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold px-3 py-1.5 rounded-full">Real
+    ({{ ns.real }})</button>
+  <button type="button" data-filter-kind="test"
+    class="filter-btn-kind bg-sky-100 hover:bg-sky-200 text-sky-800 text-xs font-semibold px-3 py-1.5 rounded-full">Test
+    ({{ ns.test }})</button>
+
+  <input id="orders-search" type="search" placeholder="Search name or flavour…"
+    class="ml-auto text-sm px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:border-slate-500 w-64" />
+</div>
+
+<style>
+  .filter-btn.active,
+  .filter-btn-kind.active {
+    background-color: #1e293b !important;
+    color: #fff !important;
+  }
+</style>
+
 <div class="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-200">
   <table class="w-full text-sm">
     <thead class="bg-gray-50 border-b border-gray-200 text-gray-600 uppercase text-xs tracking-wide">
@@ -26,9 +79,10 @@
         <th class="px-6 py-3 text-left">Actions</th>
       </tr>
     </thead>
-    <tbody class="divide-y divide-gray-100">
+    <tbody id="orders-tbody" class="divide-y divide-gray-100">
       {% for o in orders %}
-      <tr class="hover:bg-gray-50">
+      <tr class="hover:bg-gray-50 order-row" data-status="{{ o.status }}" data-kind="{{ o.kind }}"
+        data-search="{{ (o.customer_name ~ ' ' ~ o.flavor_name)|lower }}">
         <td class="px-6 py-4 font-semibold text-gray-800">
           {{ o.customer_name }}
           {% if o.customer_id %}<span class="block text-[10px] text-gray-400 font-mono">{{ o.customer_id }}</span>{%
@@ -39,7 +93,7 @@
           {% if o.kind == 'test' %}
           <span class="bg-sky-100 text-sky-800 text-xs font-semibold px-3 py-1 rounded-full">TEST</span>
           {% else %}
-          <span class="bg-pink-100 text-pink-800 text-xs font-semibold px-3 py-1 rounded-full">REAL</span>
+          <span class="bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-1 rounded-full">REAL</span>
           {% endif %}
         </td>
         <td class="px-6 py-4">
@@ -47,6 +101,8 @@
           <span class="bg-yellow-100 text-yellow-800 text-xs font-semibold px-3 py-1 rounded-full">Pending</span>
           {% elif o.status == 'ready' %}
           <span class="bg-green-100 text-green-800 text-xs font-semibold px-3 py-1 rounded-full">Ready ✅</span>
+          {% elif o.status == 'cancelled' %}
+          <span class="bg-red-100 text-red-700 text-xs font-semibold px-3 py-1 rounded-full">Cancelled</span>
           {% else %}
           <span class="bg-gray-100 text-gray-600 text-xs font-semibold px-3 py-1 rounded-full">Collected</span>
           {% endif %}
@@ -56,6 +112,7 @@
           <div class="flex gap-2">
             {% if o.status == 'pending' %}
             <form method="post" action="/admin/orders/{{ o.id }}/status">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}" />
               <input type="hidden" name="status" value="ready" />
               <button type="submit"
                 class="bg-green-500 hover:bg-green-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
@@ -64,6 +121,7 @@
             </form>
             {% elif o.status == 'ready' %}
             <form method="post" action="/admin/orders/{{ o.id }}/status">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}" />
               <input type="hidden" name="status" value="collected" />
               <button type="submit"
                 class="bg-gray-500 hover:bg-gray-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
@@ -77,7 +135,61 @@
       {% endfor %}
     </tbody>
   </table>
+  <div id="orders-empty" class="hidden p-12 text-center text-gray-400 text-sm">
+    No orders match the current filter.
+  </div>
 </div>
+
+<script>
+  (function () {
+    const tbody = document.getElementById('orders-tbody');
+    const search = document.getElementById('orders-search');
+    const empty = document.getElementById('orders-empty');
+    if (!tbody) return;
+
+    let curStatus = 'all';
+    let curKind = 'all';
+    let curQuery = '';
+
+    function apply() {
+      let visible = 0;
+      tbody.querySelectorAll('.order-row').forEach((tr) => {
+        const okStatus = curStatus === 'all' || tr.dataset.status === curStatus;
+        const okKind = curKind === 'all' || tr.dataset.kind === curKind;
+        const okQuery = !curQuery || (tr.dataset.search || '').includes(curQuery);
+        const show = okStatus && okKind && okQuery;
+        tr.classList.toggle('hidden', !show);
+        if (show) visible += 1;
+      });
+      if (empty) empty.classList.toggle('hidden', visible !== 0);
+    }
+
+    document.querySelectorAll('[data-filter-status]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        curStatus = btn.dataset.filterStatus;
+        document.querySelectorAll('[data-filter-status]').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        apply();
+      });
+    });
+
+    document.querySelectorAll('[data-filter-kind]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        curKind = btn.dataset.filterKind;
+        document.querySelectorAll('[data-filter-kind]').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        apply();
+      });
+    });
+
+    if (search) {
+      search.addEventListener('input', () => {
+        curQuery = search.value.trim().toLowerCase();
+        apply();
+      });
+    }
+  })();
+</script>
 {% else %}
 <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-16 text-center">
   <p class="text-5xl mb-4">📭</p>

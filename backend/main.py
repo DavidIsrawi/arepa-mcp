@@ -27,7 +27,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Cupcake Store",
+    title="Sparkles",
     description="Workshop demo — order cupcakes via your AI agent 🧁",
     lifespan=lifespan,
 )

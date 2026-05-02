@@ -1,6 +1,6 @@
 {% extends "admin_base.html" %}
 {% block title %}Users{% endblock %}
-{% block nav_users %}underline decoration-pink-200{% endblock %}
+{% block nav_users %}underline decoration-slate-300{% endblock %}
 
 {% block content %}
 <div class="mb-6">
@@ -10,25 +10,23 @@
 
 <!-- Add user form -->
 <details class="bg-white border border-gray-200 rounded-2xl shadow-sm mb-8">
-  <summary class="px-6 py-4 cursor-pointer font-semibold text-pink-600 hover:text-pink-700 select-none">
+  <summary class="px-6 py-4 cursor-pointer font-semibold text-slate-700 hover:text-slate-900 select-none">
     ＋ Add new user
   </summary>
   <div class="px-6 pb-6 pt-2 border-t border-gray-100">
     <form method="post" action="/admin/users" class="flex gap-4 items-end flex-wrap">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}" />
       <div>
         <label class="label">Username *</label>
-        <input name="username" type="text" required placeholder="alice"
-          pattern="[a-zA-Z0-9_\-]{1,50}"
-          title="Letters, numbers, underscores and hyphens only"
-          class="input w-48" />
+        <input name="username" type="text" required placeholder="alice" pattern="[a-zA-Z0-9_\-]{1,50}"
+          title="Letters, numbers, underscores and hyphens only" class="input w-48" />
       </div>
       <div>
         <label class="label">Password *</label>
-        <input name="password" type="password" required minlength="4"
-          placeholder="••••••••" class="input w-48" />
+        <input name="password" type="password" required minlength="8" placeholder="••••••••" class="input w-48" />
       </div>
       <button type="submit"
-        class="bg-pink-500 hover:bg-pink-600 text-white font-semibold px-5 py-2 rounded-lg transition-colors h-9">
+        class="bg-slate-800 hover:bg-slate-900 text-white font-semibold px-5 py-2 rounded-lg transition-colors h-9">
         Add User
       </button>
     </form>
@@ -52,7 +50,7 @@
         <td class="px-6 py-4 font-semibold text-gray-800">
           {{ u.RowKey }}
           {% if u.RowKey == current_user %}
-          <span class="ml-2 text-xs bg-pink-100 text-pink-600 px-2 py-0.5 rounded-full">you</span>
+          <span class="ml-2 text-xs bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full">you</span>
           {% endif %}
         </td>
 
@@ -62,10 +60,10 @@
             <summary class="cursor-pointer text-blue-600 hover:text-blue-700 text-xs font-semibold select-none">
               Change password
             </summary>
-            <form method="post" action="/admin/users/{{ u.RowKey }}/password"
-              class="flex gap-2 mt-2 items-center">
-              <input name="password" type="password" required minlength="4"
-                placeholder="New password" class="input w-44" />
+            <form method="post" action="/admin/users/{{ u.RowKey }}/password" class="flex gap-2 mt-2 items-center">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}" />
+              <input name="password" type="password" required minlength="8" placeholder="New password"
+                class="input w-44" />
               <button type="submit"
                 class="bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
                 Update
@@ -79,8 +77,8 @@
           {% if u.RowKey != current_user %}
           <form method="post" action="/admin/users/{{ u.RowKey }}/delete"
             onsubmit="return confirm('Delete user {{ u.RowKey }}?')">
-            <button type="submit"
-              class="text-red-500 hover:text-red-700 text-xs font-semibold">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}" />
+            <button type="submit" class="text-red-500 hover:text-red-700 text-xs font-semibold">
               Delete
             </button>
           </form>
@@ -100,8 +98,25 @@
 {% endif %}
 
 <style>
-  .label { display:block; font-size:.75rem; font-weight:500; color:#374151; margin-bottom:.25rem; }
-  .input { border:1px solid #d1d5db; border-radius:.5rem; padding:.4rem .75rem; font-size:.875rem; outline:none; }
-  .input:focus { box-shadow:0 0 0 2px #f9a8d4; border-color:#ec4899; }
+  .label {
+    display: block;
+    font-size: .75rem;
+    font-weight: 500;
+    color: #374151;
+    margin-bottom: .25rem;
+  }
+
+  .input {
+    border: 1px solid #d1d5db;
+    border-radius: .5rem;
+    padding: .4rem .75rem;
+    font-size: .875rem;
+    outline: none;
+  }
+
+  .input:focus {
+    box-shadow: 0 0 0 2px #cbd5e1;
+    border-color: #475569;
+  }
 </style>
 {% endblock %}

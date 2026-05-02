@@ -110,6 +110,18 @@ def decrement_stock(flavor_id: str) -> bool:
     return True
 
 
+def increment_stock(flavor_id: str) -> bool:
+    """Increment stock by 1 (used to refund a cancelled real order)."""
+    table = _client().get_table_client(TABLE_FLAVORS)
+    try:
+        entity = table.get_entity("flavor", flavor_id)
+    except ResourceNotFoundError:
+        return False
+    entity["stock"] = int(entity.get("stock", 0)) + 1
+    table.update_entity(entity, mode=UpdateMode.REPLACE)
+    return True
+
+
 def stock_label(stock: int) -> tuple[str, str]:
     """Return (machine_status, human_label) for a given numeric stock count."""
     if stock <= 0:
@@ -127,7 +139,18 @@ def list_orders() -> list:
     orders = list(
         _client().get_table_client(TABLE_ORDERS).query_entities("PartitionKey eq 'order'")
     )
-    return sorted(orders, key=lambda o: o.get("created_at", ""))
+    # Newest first.
+    return sorted(orders, key=lambda o: o.get("created_at", ""), reverse=True)
+
+
+def list_orders_by_status(status: str, kind: str | None = None) -> list:
+    """Server-side filtered query, newest first."""
+    safe_status = _odata_escape(status)
+    flt = f"PartitionKey eq 'order' and status eq '{safe_status}'"
+    if kind is not None:
+        flt += f" and kind eq '{_odata_escape(kind)}'"
+    rows = list(_client().get_table_client(TABLE_ORDERS).query_entities(flt))
+    return sorted(rows, key=lambda o: o.get("created_at", ""), reverse=True)
 
 
 def get_active_order_for_customer(customer_id: str, kind: str) -> dict | None:
@@ -163,10 +186,21 @@ def create_order(flavor_id: str, customer_id: str, customer_name: str, kind: str
     return order_id
 
 
+def get_order(order_id: str) -> dict | None:
+    try:
+        return _client().get_table_client(TABLE_ORDERS).get_entity("order", order_id)
+    except ResourceNotFoundError:
+        return None
+
+
 def update_order_status(order_id: str, status: str) -> None:
     table = _client().get_table_client(TABLE_ORDERS)
     entity = table.get_entity("order", order_id)
     entity["status"] = status
+    now = datetime.now(timezone.utc).isoformat()
+    entity["status_changed_at"] = now
+    if status == "ready" and not entity.get("ready_at"):
+        entity["ready_at"] = now
     table.update_entity(entity, mode=UpdateMode.MERGE)
 
 
@@ -220,9 +254,10 @@ def verify_password(username: str, password: str) -> bool:
 
 # ── Customers ─────────────────────────────────────────────────────────────────
 
-def create_customer(display_name: str) -> str:
+def create_customer(first_name: str, last_name: str, city: str) -> str:
     """Allocate a fresh customer_id and persist the customer row. Retries on collision."""
     table = _client().get_table_client(TABLE_CUSTOMERS)
+    display_name = f"{first_name} {last_name}".strip()
     for _ in range(5):
         cid = _generate_customer_id()
         try:
@@ -231,6 +266,9 @@ def create_customer(display_name: str) -> str:
                     "PartitionKey": "customer",
                     "RowKey": cid,
                     "display_name": display_name,
+                    "first_name": first_name,
+                    "last_name": last_name,
+                    "city": city,
                     "created_at": datetime.now(timezone.utc).isoformat(),
                     "real_orders_count": 0,
                 }
@@ -258,5 +296,14 @@ def increment_real_orders(customer_id: str) -> int:
     table = _client().get_table_client(TABLE_CUSTOMERS)
     entity = table.get_entity("customer", customer_id)
     entity["real_orders_count"] = int(entity.get("real_orders_count", 0)) + 1
+    table.update_entity(entity, mode=UpdateMode.MERGE)
+    return entity["real_orders_count"]
+
+
+def decrement_real_orders(customer_id: str) -> int:
+    """Refund the lifetime real-order count by 1, never going below zero."""
+    table = _client().get_table_client(TABLE_CUSTOMERS)
+    entity = table.get_entity("customer", customer_id)
+    entity["real_orders_count"] = max(0, int(entity.get("real_orders_count", 0)) - 1)
     table.update_entity(entity, mode=UpdateMode.MERGE)
     return entity["real_orders_count"]

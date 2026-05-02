@@ -1,6 +1,6 @@
 {% extends "admin_base.html" %}
 {% block title %}Customers{% endblock %}
-{% block nav_customers %}underline decoration-pink-200{% endblock %}
+{% block nav_customers %}underline decoration-slate-300{% endblock %}
 
 {% block content %}
 <div class="flex items-center justify-between mb-6">
@@ -15,6 +15,7 @@
             <tr>
                 <th class="px-6 py-3 text-left">Customer ID</th>
                 <th class="px-6 py-3 text-left">Display name</th>
+                <th class="px-6 py-3 text-left">City</th>
                 <th class="px-6 py-3 text-left">Real orders</th>
                 <th class="px-6 py-3 text-left">Registered</th>
             </tr>
@@ -24,9 +25,10 @@
             <tr class="hover:bg-gray-50">
                 <td class="px-6 py-4 font-mono text-gray-700">{{ c.customer_id }}</td>
                 <td class="px-6 py-4 text-gray-800">{{ c.display_name }}</td>
+                <td class="px-6 py-4 text-gray-600">{{ c.city }}</td>
                 <td class="px-6 py-4">
                     {% if c.real_orders_count >= 1 %}
-                    <span class="bg-pink-100 text-pink-800 text-xs font-semibold px-3 py-1 rounded-full">{{
+                    <span class="bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-1 rounded-full">{{
                         c.real_orders_count }} / 1 (limit reached)</span>
                     {% else %}
                     <span class="bg-gray-100 text-gray-700 text-xs font-semibold px-3 py-1 rounded-full">{{
