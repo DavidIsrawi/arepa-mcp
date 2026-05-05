@@ -8,21 +8,10 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         :root {
-            --crt-bg: #0a0510;
-            --crt-pink: #ff7ce0;
-            /* brighter neon pink */
-            --crt-pink2: #ffd6f1;
-            /* near-white pink for body text */
-            --crt-cyan: #7ff3ff;
-            /* brighter cyan */
-            --crt-amber: #ffe27a;
-            /* brighter amber/yellow */
-            --crt-green: #8dffb5;
-            /* brighter mint green */
-            --crt-red: #ff8a8a;
-            /* brighter red */
-            --crt-dim: #c79be0;
-            /* lavender, still readable on a beamer */
+            --crt-bg: #ffffff;
+            --crt-fg: #000000;
+            --crt-dim: #555555;
+            --crt-line: #000000;
         }
 
         html,
@@ -33,64 +22,8 @@
         body {
             font-family: ui-monospace, "JetBrains Mono", "Fira Code",
                 SFMono-Regular, Menlo, Consolas, monospace;
-            color: var(--crt-pink2);
-            text-shadow: 0 0 6px rgba(255, 95, 210, 0.35);
-        }
-
-        /* Scanlines + vignette over everything (kept light so text stays bright) */
-        body::before {
-            content: "";
-            position: fixed;
-            inset: 0;
-            pointer-events: none;
-            background:
-                repeating-linear-gradient(to bottom,
-                    rgba(0, 0, 0, 0.10) 0px,
-                    rgba(0, 0, 0, 0.10) 1px,
-                    transparent 1px,
-                    transparent 3px),
-                radial-gradient(circle at center,
-                    rgba(255, 124, 224, 0.04),
-                    rgba(0, 0, 0, 0.35) 90%);
-            mix-blend-mode: multiply;
-            z-index: 50;
-        }
-
-        /* Subtle CRT flicker */
-        @keyframes flicker {
-
-            0%,
-            100% {
-                opacity: 1;
-            }
-
-            48% {
-                opacity: 1;
-            }
-
-            49% {
-                opacity: 0.92;
-            }
-
-            50% {
-                opacity: 1;
-            }
-
-            97% {
-                opacity: 1;
-            }
-
-            98% {
-                opacity: 0.95;
-            }
-
-            99% {
-                opacity: 1;
-            }
-        }
-
-        .crt {
-            animation: flicker 4s infinite;
+            color: var(--crt-fg);
+            text-shadow: none;
         }
 
         /* Generic ASCII text block */
@@ -99,61 +32,33 @@
             line-height: 1.05;
         }
 
-        /* Glow helpers (slightly stronger glow, full-saturation core colour) */
-        .glow-pink {
-            color: var(--crt-pink);
-            text-shadow: 0 0 8px var(--crt-pink), 0 0 16px rgba(255, 124, 224, 0.7);
-        }
-
-        .glow-cyan {
-            color: var(--crt-cyan);
-            text-shadow: 0 0 8px var(--crt-cyan), 0 0 16px rgba(127, 243, 255, 0.7);
-        }
-
-        .glow-amber {
-            color: var(--crt-amber);
-            text-shadow: 0 0 8px var(--crt-amber), 0 0 16px rgba(255, 226, 122, 0.7);
-        }
-
-        .glow-green {
-            color: var(--crt-green);
-            text-shadow: 0 0 8px var(--crt-green), 0 0 16px rgba(141, 255, 181, 0.7);
-        }
-
+        /* Glow helpers — flattened to monochrome black */
+        .glow-pink,
+        .glow-cyan,
+        .glow-amber,
+        .glow-green,
         .glow-red {
-            color: var(--crt-red);
-            text-shadow: 0 0 8px var(--crt-red), 0 0 16px rgba(255, 138, 138, 0.7);
+            color: var(--crt-fg);
+            text-shadow: none;
         }
 
         .dim {
             color: var(--crt-dim);
-            text-shadow: 0 0 4px rgba(199, 155, 224, 0.4);
+            text-shadow: none;
         }
 
-        /* Boxed "panel" with brighter borders for projector readability */
+        /* Boxed "panel" — solid black border on white */
         .panel {
-            border: 2px solid rgba(255, 124, 224, 0.65);
-            box-shadow:
-                inset 0 0 24px rgba(255, 124, 224, 0.10),
-                0 0 22px rgba(255, 124, 224, 0.18);
-            background:
-                linear-gradient(180deg, rgba(255, 124, 224, 0.05), rgba(0, 0, 0, 0)),
-                rgba(10, 5, 16, 0.6);
+            border: 2px solid var(--crt-line);
+            box-shadow: none;
+            background: var(--crt-bg);
         }
 
-        .panel-cyan {
-            border-color: rgba(127, 243, 255, 0.70);
-            box-shadow: inset 0 0 24px rgba(127, 243, 255, 0.10), 0 0 22px rgba(127, 243, 255, 0.20);
-        }
-
-        .panel-amber {
-            border-color: rgba(255, 226, 122, 0.70);
-            box-shadow: inset 0 0 24px rgba(255, 226, 122, 0.10), 0 0 22px rgba(255, 226, 122, 0.20);
-        }
-
+        .panel-cyan,
+        .panel-amber,
         .panel-green {
-            border-color: rgba(141, 255, 181, 0.75);
-            box-shadow: inset 0 0 24px rgba(141, 255, 181, 0.12), 0 0 26px rgba(141, 255, 181, 0.28);
+            border-color: var(--crt-line);
+            box-shadow: none;
         }
 
         .panel-title {
@@ -169,25 +74,29 @@
             max-width: calc(100% - 1rem);
             overflow: hidden;
             text-overflow: ellipsis;
-        }
-
-        /* Voucher code – big, glowing, blinking caret */
-        @keyframes voucher-pulse {
-
-            0%,
-            100% {
-                text-shadow: 0 0 14px var(--crt-pink), 0 0 30px rgba(255, 95, 210, 0.6);
-            }
-
-            50% {
-                text-shadow: 0 0 22px var(--crt-pink), 0 0 50px rgba(255, 95, 210, 1);
-            }
+            color: var(--crt-fg);
         }
 
         .voucher-code {
-            color: #fff;
-            animation: voucher-pulse 2.4s ease-in-out infinite;
+            color: var(--crt-fg);
             letter-spacing: 0.32em;
+        }
+
+        /* Header is rendered on black — flip its content to white */
+        header.panel,
+        header.panel .ascii,
+        header.panel .ascii-wordmark,
+        header.panel .ascii-cupcake,
+        header.panel .ascii-cupcake .frosting,
+        header.panel .ascii-cupcake .wrapper,
+        header.panel .ascii-cupcake .s1,
+        header.panel .ascii-cupcake .s2,
+        header.panel .ascii-cupcake .s3,
+        header.panel .glow-pink,
+        header.panel .voucher-code,
+        header.panel .dim {
+            color: #fff;
+            text-shadow: none;
         }
 
         @keyframes blink {
@@ -227,35 +136,26 @@
 
         /* Sparkles wordmark colours */
         .ascii-wordmark {
-            color: var(--crt-pink);
-            text-shadow: 0 0 10px var(--crt-pink);
+            color: var(--crt-fg);
+            text-shadow: none;
             font-size: 11px;
         }
 
         .ascii-cupcake {
             font-size: 11px;
+            color: var(--crt-fg);
         }
 
-        .ascii-cupcake .frosting {
-            color: var(--crt-pink);
-            text-shadow: 0 0 8px var(--crt-pink);
-        }
-
+        .ascii-cupcake .frosting,
         .ascii-cupcake .wrapper {
-            color: var(--crt-cyan);
-            text-shadow: 0 0 8px var(--crt-cyan);
+            color: var(--crt-fg);
+            text-shadow: none;
         }
 
-        .ascii-cupcake .s1 {
-            color: var(--crt-red);
-        }
-
-        .ascii-cupcake .s2 {
-            color: var(--crt-amber);
-        }
-
+        .ascii-cupcake .s1,
+        .ascii-cupcake .s2,
         .ascii-cupcake .s3 {
-            color: var(--crt-cyan);
+            color: var(--crt-fg);
         }
 
         /* Tile rows (3-up grid inside each lane). The first 3 tiles get the
@@ -277,7 +177,7 @@
             align-items: center;
             gap: 0.4rem;
             padding: 0.3rem 0.45rem;
-            border: 1px dashed rgba(255, 124, 224, 0.22);
+            border: 1px dashed var(--crt-fg);
             border-radius: 4px;
             min-width: 0;
         }
@@ -287,7 +187,7 @@
             /* 1/2 width — featured tile */
             padding: 0.5rem 0.7rem;
             border-style: solid;
-            border-color: rgba(255, 124, 224, 0.35);
+            border-color: var(--crt-fg);
         }
 
         .row-featured .name-tt {
@@ -306,19 +206,20 @@
         .row-picked .flavor-tt {
             text-decoration: line-through;
             text-decoration-thickness: 2px;
-            text-decoration-color: rgba(141, 255, 181, 0.9);
+            text-decoration-color: var(--crt-fg);
         }
 
         /* Ready-lane name colour (extracted from inline style) */
         .ready-name {
-            color: #fff;
-            text-shadow: 0 0 10px var(--crt-green);
+            color: var(--crt-fg);
+            text-shadow: none;
         }
 
         /* Offline indicator state for the live status pill */
         .offline {
-            color: var(--crt-red) !important;
-            text-shadow: 0 0 6px var(--crt-red) !important;
+            color: var(--crt-fg) !important;
+            text-shadow: none !important;
+            font-weight: 700;
         }
 
         .name-tt {
@@ -346,8 +247,10 @@
 <body class="h-screen overflow-hidden flex flex-col p-3 gap-3 crt">
 
     <!-- ── TOP BAR ──────────────────────────────────────────────────────── -->
-    <header class="panel rounded-md px-5 py-2 flex items-center justify-between gap-6 relative">
-        <span class="panel-title glow-pink absolute top-0 left-6">[ SPARKLES // ORDER TERMINAL ]</span>
+    <header class="panel rounded-md px-5 py-2 flex items-center justify-between gap-6 relative"
+        style="background:#000; color:#fff; border-color:#000;">
+        <span class="panel-title absolute top-0 left-6" style="background:#000; color:#fff;">[ SPARKLES // ORDER
+            TERMINAL ]</span>
 
         <!-- ASCII logo -->
         <div class="flex items-center gap-4 mt-1">
@@ -372,7 +275,7 @@
             <p id="voucher-code" class="voucher-code text-6xl font-black tabular-nums">{{ voucher }}<span
                     class="caret glow-pink">_</span>
             </p>
-            <div class="text-left leading-tight pl-4 border-l border-pink-500/30">
+            <div class="text-left leading-tight pl-4 border-l border-white/40">
                 <p class="text-[11px] tracking-[0.3em] glow-pink">REFRESH</p>
                 <p id="countdown" data-seconds="{{ voucher_seconds }}"
                     class="text-2xl font-black tabular-nums glow-pink">
@@ -440,32 +343,17 @@
         </section>
     </div>
 
-    <!-- ── STATUS BAR (marquee) ─────────────────────────────────────────── -->
-    <footer class="panel rounded-md px-3 py-1 overflow-hidden">
-        <div class="flex items-center gap-3 text-xs">
-            <span class="glow-pink whitespace-nowrap">[ STATUS ]</span>
-            <div class="flex-1 overflow-hidden">
-                <div class="marquee-track">
-                    {% for _ in range(2) %}
-                    <span class="dim">SPARKLES v1.0</span>
-                    <span class="glow-pink">●</span>
-                    <span class="dim">order via your AI agent</span>
-                    <span class="glow-pink">●</span>
-                    <span class="dim">one real cupcake per person</span>
-                    <span class="glow-pink">●</span>
-                    <span class="dim">voucher rotates every {{ voucher_window // 60 }}m</span>
-                    <span class="glow-pink">●</span>
-                    <span class="dim">listen for your name</span>
-                    <span class="glow-pink">●</span>
-                    <span class="dim">hand in voucher at pickup</span>
-                    <span class="glow-pink">●</span>
-                    <span class="dim">be kind to the baker</span>
-                    <span class="glow-pink">●</span>
-                    {% endfor %}
-                </div>
-            </div>
-            <span id="live-pill" class="dim whitespace-nowrap">↻ live</span>
+    <!-- ── WORKSHOP BANNER ─────────────────────────────────────────────── -->
+    <footer class="rounded-md px-8 py-6 flex items-center justify-between gap-8" style="background:#000; color:#fff;">
+        <div class="leading-tight">
+            <p class="text-2xl tracking-[0.25em] uppercase opacity-80">Access the workshop</p>
+            <p class="text-5xl font-black tracking-wider mt-2">https://aka.ms/claude-workshop</p>
         </div>
+        <div class="text-right leading-tight">
+            <p class="text-2xl tracking-[0.25em] uppercase opacity-80">Training Key</p>
+            <p class="text-6xl font-black tracking-[0.18em] mt-2">Cupcakes</p>
+        </div>
+        <span id="live-pill" class="hidden">↻ live</span>
     </footer>
 
     <script>
