@@ -92,11 +92,11 @@ CONVERSATION FLOW
 
 3. Order:
    - Call list_cupcakes. Each item has an 'id' (machine slug, e.g.
-     'claude-special') and a 'name' (human label, e.g. 'Claude Special').
-     Show the user a numbered list of NAMES with their qualitative stock
-     (plenty / limited / almost finished), so they can pick by number.
-     Keep the 'id' for yourself — use it as flavor_id when calling
-     order_cupcake.
+    'choc-fudge') and a 'name' (human label, e.g. 'Chocolate Fudge').
+    Show the user a numbered list of NAMES with their qualitative stock
+    (plenty / limited / almost finished), so they can pick by number.
+    Keep the 'id' for yourself — use it as flavor_id when calling
+    order_cupcake.
    - Ask which flavour they would like (by number or name).
    - Ask them to read the current 6-character voucher code from the big
      dashboard screen at the front of the room.
@@ -320,9 +320,9 @@ def list_cupcakes() -> list[dict]:
     List cupcake flavours currently in stock. No customer_id needed.
 
     Returns a list of items with these fields:
-        id            machine slug, e.g. "claude-special" — pass this as
+        id            machine slug, e.g. "choc-fudge" — pass this as
                       flavor_id to order_cupcake.
-        name          human label, e.g. "Claude Special" — show this to
+        name          human label, e.g. "Chocolate Fudge" — show this to
                       the user.
         description   short description (may be empty).
         price         numeric price.

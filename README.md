@@ -344,7 +344,7 @@ Three tables are created automatically on first startup:
 
 ## MCP client config examples
 
-**Claude Desktop** (`claude_desktop_config.json`):
+**MCP-compatible client:**
 ```json
 {
   "mcpServers": {
