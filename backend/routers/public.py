@@ -3,12 +3,13 @@ from typing import Literal
 from datetime import datetime, timedelta, timezone
 import time
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
 from backend import rate_limit, storage, voucher
+from backend.auth import require_admin
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
@@ -144,9 +145,9 @@ async def place_order(order: OrderRequest):
     }
 
 
-@router.get("/orders")
+@router.get("/orders", dependencies=[Depends(require_admin)])
 async def get_orders():
-    """List all orders (used by the dashboard and admin UIs)."""
+    """List all orders for authenticated administrators."""
     orders = storage.list_orders()
     flavors = {f["RowKey"]: f for f in storage.list_flavors()}
     return [
