@@ -1,1 +1,0 @@
-fastmcp call https://ca-cupcake-mcp.jollyplant-ed217b0d.eastus.azurecontainerapps.io/mcp/ order_cupcake '{"flavor_id":"choc-fudge","customer_name":"Alice1"}'

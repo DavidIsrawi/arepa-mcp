@@ -79,7 +79,7 @@ az containerapp create -g rg-cupcake-mcp -n ca-cupcake-mcp \
   --image mcr.microsoft.com/k8se/quickstart:latest \
   --target-port 8000 --ingress external \
   --secrets storage-conn="<conn-str>" session-secret="<random>" \
-  --env-vars AZURE_STORAGE_CONNECTION_STRING=secretref:storage-conn SESSION_SECRET=secretref:session-secret
+  --env-vars AZURE_STORAGE_CONNECTION_STRING=secretref:storage-conn SESSION_SECRET=secretref:session-secret SESSION_COOKIE_SECURE=true
 ```
 
 **One-time setup (GitHub OIDC):** Create an Entra ID app registration with a federated credential for this repo/branch, grant it `AcrPush` on the registry and `Contributor` on the resource group.
@@ -96,6 +96,10 @@ az containerapp create -g rg-cupcake-mcp -n ca-cupcake-mcp \
 | `ACR_NAME` | Your ACR name (just the name, not FQDN) |
 
 Push to `main` — or run the workflow manually — and the app will be deployed.
+
+For every HTTPS deployment, set `SESSION_COOKIE_SECURE=true` on the Container
+App so browsers send admin session cookies only over secure connections. Leave
+it `false` only for local HTTP development.
 
 ---
 
@@ -118,6 +122,9 @@ docker compose up --build
 The `docker-compose.yml` starts two services:
 - **`app`** — the FastAPI container (port 8000)
 - **`azurite`** — Azure Table Storage emulator (port 10002), with a healthcheck so the app waits for it to be ready
+
+The optional client in `test-agents/` has its own requirements file and should
+be installed in a separate virtual environment from the application.
 
 To use real Azure Storage instead, set your connection string in `.env` and remove the `azurite` service block from `docker-compose.yml`.
 
@@ -227,10 +234,19 @@ Log in at `/admin` to access three management sections:
 
 Agents connect to `http://<host>:8000/mcp` using the **streamable HTTP** transport. No authentication is required — the MCP server is intentionally open for workshop demos.
 
-Three tools are available:
+> [!WARNING]
+> Treat every deployment as a supervised, disposable workshop service. Do not
+> expose this MCP endpoint as a general-purpose production service without an
+> authentication layer, network controls, and abuse monitoring.
+
+Six tools are available:
+
+### `register_customer(first_name, last_name, city)`
+Registers a customer and returns an 8-character `customer_id`. Agents retain
+this ID for subsequent order and status calls.
 
 ### `list_cupcakes()`
-Returns all flavours that are currently in stock (stock > 0).
+Returns flavours with qualitative stock labels rather than exact inventory.
 
 ```json
 [
@@ -239,30 +255,37 @@ Returns all flavours that are currently in stock (stock > 0).
     "name": "Chocolate Fudge",
     "description": "Rich dark chocolate ganache",
     "price": 2.50,
-    "stock": 8
+    "stock_status": "in_stock",
+    "stock_label": "plenty"
   }
 ]
 ```
 
-### `order_cupcake(flavor_id, customer_name)`
-Places one order. `customer_name` is used as the Starbucks-style pickup call-out.
+### `order_cupcake(flavor_id, customer_id, kind, voucher_code)`
+Places a `test` or `real` order for a registered customer. A valid rotating
+voucher from the workshop dashboard is required.
 
 ```json
-{ "success": true, "order_id": "uuid", "message": "Order placed! Listen for 'Alice' 🧁" }
+{ "success": true, "customer_id": "ABCD2345", "kind": "real", "status": "pending" }
 ```
 
 Returns `success: false` with a descriptive message if:
-- The name already has an active order
+- The customer ID or voucher is invalid
+- The customer already has an active order of that kind
+- The customer has already received their one real cupcake
 - The flavour doesn't exist
 - The flavour is out of stock
-- The name contains invalid characters
 
-### `check_order_status(customer_name)`
-Returns the current status for an active order under that name.
+### `check_order_status(customer_id)`
+Returns the status of the customer's active real order.
 
-```json
-{ "found": true, "flavor": "Chocolate Fudge", "status": "ready", "message": "🎉 Your Chocolate Fudge is READY! Come pick it up, 'Alice'!" }
-```
+### `cancel_order(customer_id, kind)`
+Cancels a pending order. Cancelling a real order restores its stock and the
+customer's real-order allowance.
+
+### `voucher_status()`
+Returns timing information for the rotating workshop voucher without revealing
+the voucher code.
 
 ---
 
@@ -271,9 +294,11 @@ Returns the current status for an active order under that name.
 | Rule | How it's enforced |
 |---|---|
 | One cupcake per order | No `quantity` parameter exists in the tool or API |
-| No double ordering | Rejected if the same name already has a `pending` or `ready` order |
+| One real cupcake per customer | Customer record tracks lifetime real orders |
+| No double ordering | Rejected if the customer has an active order of that kind |
 | Out-of-stock protection | Stock checked before accepting; decremented immediately on order |
-| Name validation | Letters, numbers, spaces, hyphens only — max 50 chars |
+| Voucher validation | Orders require the rotating code displayed at the workshop |
+| Abuse throttling | Repeated incorrect voucher attempts trigger a temporary lockout |
 
 ---
 
@@ -283,10 +308,11 @@ The full API is documented at `/docs`. Key public endpoints:
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/cupcakes` | List all flavours with stock |
-| `POST` | `/orders` | Place an order (same guard rails as MCP) |
-| `GET` | `/orders` | List all orders |
+| `POST` | `/customers` | Register a customer and receive a customer ID |
+| `GET` | `/cupcakes` | List flavours with qualitative stock status |
+| `POST` | `/orders` | Place a test or real order with a voucher |
 | `GET` | `/dashboard` | Beamer HTML view |
+| `GET` | `/dashboard/data` | Display-safe dashboard data |
 
 Key admin endpoints (require login session):
 
@@ -295,6 +321,7 @@ Key admin endpoints (require login session):
 | `GET/POST` | `/admin/login` | Login form |
 | `POST` | `/admin/logout` | Logout |
 | `GET` | `/admin/orders` | Order management page |
+| `GET` | `/orders` | List complete order records as JSON |
 | `POST` | `/admin/orders/{id}/status` | Update order status |
 | `POST` | `/admin/reset` | Clear all orders |
 | `GET` | `/admin/flavors` | Flavour management page |
@@ -310,7 +337,7 @@ Key admin endpoints (require login session):
 
 ## Data model (Azure Table Storage)
 
-Three tables are created automatically on first startup:
+Four tables are created automatically on first startup:
 
 **`Flavors`**
 | Field | Type | Description |
@@ -329,9 +356,20 @@ Three tables are created automatically on first startup:
 | PartitionKey | `"order"` | Fixed |
 | RowKey | UUID | Order ID |
 | flavor_id | string | FK → Flavors RowKey |
-| customer_name | string | Pickup name |
+| customer_id | string | FK → Customers RowKey |
+| customer_name | string | Display name |
+| kind | string | `test` / `real` |
 | status | string | `pending` / `ready` / `collected` |
 | created_at | ISO 8601 | Order timestamp |
+
+**`Customers`**
+| Field | Type | Description |
+|---|---|---|
+| PartitionKey | `"customer"` | Fixed |
+| RowKey | string | 8-character customer ID |
+| display_name | string | Customer display name |
+| city | string | Customer city |
+| real_orders_count | integer | Lifetime real-order count |
 
 **`Users`**
 | Field | Type | Description |

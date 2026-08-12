@@ -1,5 +1,4 @@
 import functools
-import inspect
 import logging
 import re
 from typing import Literal
@@ -10,30 +9,14 @@ from backend import rate_limit, storage, voucher
 
 logger = logging.getLogger("mcp.tools")
 
-_SECRET_PARAMS = {"voucher_code"}
-
-
 def _log_call(func):
-    """Decorator: log incoming params (with secrets masked) and the returned result.
-
-    Masks any argument whose parameter name is in _SECRET_PARAMS, regardless of
-    whether it was passed positionally or as a keyword.
-    """
-    sig = inspect.signature(func)
+    """Log tool activity without recording customer data or credentials."""
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
-        try:
-            bound = sig.bind_partial(*args, **kwargs)
-            safe = {
-                k: ("***" if k in _SECRET_PARAMS else v)
-                for k, v in bound.arguments.items()
-            }
-        except TypeError:
-            safe = {"args": args, "kwargs": {k: ("***" if k in _SECRET_PARAMS else v) for k, v in kwargs.items()}}
-        logger.info("→ %s %s", func.__name__, safe)
+        logger.info("MCP tool called: %s", func.__name__)
         result = func(*args, **kwargs)
-        logger.info("← %s %s", func.__name__, result)
+        logger.info("MCP tool completed: %s", func.__name__)
         return result
 
     return wrapper

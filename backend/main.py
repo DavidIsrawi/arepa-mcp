@@ -36,7 +36,8 @@ app.add_middleware(
     SessionMiddleware,
     secret_key=os.environ.get("SESSION_SECRET", "dev-secret-please-change-in-production"),
     max_age=86400,  # 24 hours
-    https_only=False,  # allow HTTP for local / workshop LAN
+    https_only=os.environ.get("SESSION_COOKIE_SECURE", "false").lower()
+    in {"1", "true", "yes"},
 )
 
 app.include_router(public.router)
