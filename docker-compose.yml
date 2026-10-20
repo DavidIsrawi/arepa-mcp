@@ -8,6 +8,9 @@ services:
       - AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}
       - SESSION_SECRET=${SESSION_SECRET:-change-me-to-a-long-random-string}
       - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-false}
+      - WORKSHOP_URL=${WORKSHOP_URL:-}
+      - WORKSHOP_TRAINING_KEY=${WORKSHOP_TRAINING_KEY:-}
+      - VOUCHER_SECRET=${VOUCHER_SECRET:-}
     depends_on:
       azurite:
         condition: service_healthy

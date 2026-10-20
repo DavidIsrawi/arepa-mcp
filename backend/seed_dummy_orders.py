@@ -5,7 +5,8 @@ Usage (from repo root, with the same env as the app):
     python -m backend.seed_dummy_orders          # default: 50 pending + 50 ready
     python -m backend.seed_dummy_orders 30 20    # 30 pending + 20 ready
 
-Creates fake customers as needed and ensures at least one flavour exists.
+Creates fake customers as needed and ensures at least one demo arepa exists.
+Use only with a disposable demo database, never the live workshop inventory.
 Real-order lifetime cap and stock are bypassed (stock is decremented
 only if available; otherwise the order is still created).
 """
@@ -51,10 +52,10 @@ def _ensure_flavour() -> str:
     if flavours:
         return random.choice(flavours)["RowKey"]
     storage.create_flavor(
-        "demo-vanilla", "Demo Vanilla", "Seeded for dashboard demo.",
-        2.5, 999, "",
+        "demo-arepa", "Demo Arepa", "Illustrative beef, cheese and black bean arepa. Not a real order.",
+        0.0, 999, "",
     )
-    return "demo-vanilla"
+    return "demo-arepa"
 
 
 def _create_dummy_customer() -> tuple[str, str]:

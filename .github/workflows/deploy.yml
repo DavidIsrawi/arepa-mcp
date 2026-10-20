@@ -14,7 +14,7 @@ env:
   AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
   AZURE_CONTAINER_APP_NAME: ${{ vars.AZURE_CONTAINER_APP_NAME }}
   ACR_NAME: ${{ vars.ACR_NAME }}
-  IMAGE_NAME: cupcake-mcp
+  IMAGE_NAME: arepa-lab-mcp
 
 jobs:
   build-and-deploy:

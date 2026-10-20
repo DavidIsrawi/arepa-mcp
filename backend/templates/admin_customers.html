@@ -1,17 +1,17 @@
 {% extends "admin_base.html" %}
 {% block title %}Customers{% endblock %}
-{% block nav_customers %}underline decoration-slate-300{% endblock %}
+{% block nav_customers %}underline decoration-amber-300{% endblock %}
 
 {% block content %}
 <div class="flex items-center justify-between mb-6">
-    <h1 class="text-2xl font-bold text-gray-800">Customers</h1>
-    <p class="text-sm text-gray-500">{{ customers|length }} registered</p>
+    <h1 class="text-2xl font-bold text-stone-800">Customers</h1>
+    <p class="text-sm text-stone-500">{{ customers|length }} registered</p>
 </div>
 
 {% if customers %}
-<div class="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-200">
+<div class="bg-white rounded-2xl shadow-sm overflow-hidden border border-stone-200">
     <table class="w-full text-sm">
-        <thead class="bg-gray-50 border-b border-gray-200 text-gray-600 uppercase text-xs tracking-wide">
+        <thead class="bg-stone-50 border-b border-stone-200 text-stone-600 uppercase text-xs tracking-wide">
             <tr>
                 <th class="px-6 py-3 text-left">Customer ID</th>
                 <th class="px-6 py-3 text-left">Display name</th>
@@ -22,30 +22,30 @@
         </thead>
         <tbody class="divide-y divide-gray-100">
             {% for c in customers %}
-            <tr class="hover:bg-gray-50">
-                <td class="px-6 py-4 font-mono text-gray-700">{{ c.customer_id }}</td>
-                <td class="px-6 py-4 text-gray-800">{{ c.display_name }}</td>
-                <td class="px-6 py-4 text-gray-600">{{ c.city }}</td>
+            <tr class="hover:bg-stone-50">
+                <td class="px-6 py-4 font-mono text-stone-700">{{ c.customer_id }}</td>
+                <td class="px-6 py-4 text-stone-800">{{ c.display_name }}</td>
+                <td class="px-6 py-4 text-stone-600">{{ c.city }}</td>
                 <td class="px-6 py-4">
                     {% if c.real_orders_count >= 1 %}
-                    <span class="bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-1 rounded-full">{{
+                    <span class="bg-stone-200 text-stone-700 text-xs font-semibold px-3 py-1 rounded-full">{{
                         c.real_orders_count }} / 1 (limit reached)</span>
                     {% else %}
-                    <span class="bg-gray-100 text-gray-700 text-xs font-semibold px-3 py-1 rounded-full">{{
+                    <span class="bg-stone-100 text-stone-700 text-xs font-semibold px-3 py-1 rounded-full">{{
                         c.real_orders_count }} / 1</span>
                     {% endif %}
                 </td>
-                <td class="px-6 py-4 text-gray-400 text-xs">{{ c.created_at }}</td>
+                <td class="px-6 py-4 text-stone-600 text-xs">{{ c.created_at }}</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
 {% else %}
-<div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-16 text-center">
+<div class="bg-white rounded-2xl shadow-sm border border-stone-200 p-16 text-center">
     <p class="text-5xl mb-4">👥</p>
-    <p class="text-gray-500 text-lg">No customers registered yet.</p>
-    <p class="text-gray-400 text-sm mt-1">They'll appear here when agents call register_customer.</p>
+    <p class="text-stone-500 text-lg">No customers registered yet.</p>
+    <p class="text-stone-600 text-sm mt-1">They'll appear here when agents call register_customer.</p>
 </div>
 {% endif %}
 {% endblock %}

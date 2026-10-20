@@ -10,9 +10,11 @@ from pydantic import BaseModel, Field
 
 from backend import rate_limit, storage, voucher
 from backend.auth import require_admin
+from backend.branding import workshop_context
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
+templates.env.globals["workshop"] = workshop_context
 
 # Dashboard tunables
 _DASH_LANE_CAP = 39          # max tiles rendered per lane
@@ -65,9 +67,9 @@ async def register_customer(req: RegisterRequest):
     }
 
 
-@router.get("/cupcakes")
-async def get_cupcakes():
-    """List cupcake flavors with qualitative stock status."""
+@router.get("/arepas")
+async def get_arepas():
+    """List arepa flavors with qualitative stock status."""
     out = []
     for f in storage.list_flavors():
         stock = int(f.get("stock", 0))
@@ -88,7 +90,7 @@ async def get_cupcakes():
 
 @router.post("/orders", status_code=201)
 async def place_order(order: OrderRequest):
-    """Place an order (test or real). Real requires voucher + 1-cupcake cap."""
+    """Place an order (test or real). Real requires voucher + 1-arepa cap."""
     customer_id = order.customer_id.strip().upper()
 
     customer = storage.get_customer(customer_id)
@@ -108,7 +110,7 @@ async def place_order(order: OrderRequest):
     if order.kind == "real" and int(customer.get("real_orders_count", 0)) >= 1:
         raise HTTPException(
             status_code=409,
-            detail="You have already had your one real cupcake at this workshop.",
+            detail="You have already had your one real arepa at this workshop.",
         )
 
     if storage.get_active_order_for_customer(customer_id, order.kind):
@@ -169,7 +171,7 @@ async def get_orders():
 
 @router.get("/dashboard")
 async def dashboard(request: Request):
-    """Beamer-optimised dashboard: live order queue + current voucher code."""
+    """Projector-friendly dashboard: live order queue + current voucher code."""
     data = _dashboard_data()
     return templates.TemplateResponse(
         request,
@@ -234,7 +236,7 @@ def _dashboard_data() -> dict:
     pending = [_annotate(o) for o in pending_raw[:_DASH_LANE_CAP]]
 
     # Ready lane: includes 'ready' orders plus recently-collected ones so
-    # picked-up cupcakes stay visible (with a strike-through) for a few
+    # picked-up arepas stay visible (with a strike-through) for a few
     # minutes. Sort strictly by ready_at (fall back to created_at for legacy
     # rows) so picking an order up does NOT reshuffle its position.
     picked_cutoff = (

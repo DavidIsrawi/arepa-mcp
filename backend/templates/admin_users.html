@@ -1,19 +1,19 @@
 {% extends "admin_base.html" %}
 {% block title %}Users{% endblock %}
-{% block nav_users %}underline decoration-slate-300{% endblock %}
+{% block nav_users %}underline decoration-amber-300{% endblock %}
 
 {% block content %}
 <div class="mb-6">
-  <h1 class="text-2xl font-bold text-gray-800">Users</h1>
-  <p class="text-sm text-gray-500 mt-1">Admin accounts that can log into this portal.</p>
+  <h1 class="text-2xl font-bold text-stone-800">Users</h1>
+  <p class="text-sm text-stone-500 mt-1">Admin accounts that can log into this portal.</p>
 </div>
 
 <!-- Add user form -->
-<details class="bg-white border border-gray-200 rounded-2xl shadow-sm mb-8">
-  <summary class="px-6 py-4 cursor-pointer font-semibold text-slate-700 hover:text-slate-900 select-none">
+<details class="bg-white border border-stone-200 rounded-2xl shadow-sm mb-8">
+  <summary class="px-6 py-4 cursor-pointer font-semibold text-stone-700 hover:text-stone-900 select-none">
     ＋ Add new user
   </summary>
-  <div class="px-6 pb-6 pt-2 border-t border-gray-100">
+  <div class="px-6 pb-6 pt-2 border-t border-stone-100">
     <form method="post" action="/admin/users" class="flex gap-4 items-end flex-wrap">
       <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}" />
       <div>
@@ -26,7 +26,7 @@
         <input name="password" type="password" required minlength="8" placeholder="••••••••" class="input w-48" />
       </div>
       <button type="submit"
-        class="bg-slate-800 hover:bg-slate-900 text-white font-semibold px-5 py-2 rounded-lg transition-colors h-9">
+        class="bg-stone-800 hover:bg-stone-900 text-white font-semibold px-5 py-2 rounded-lg transition-colors h-9">
         Add User
       </button>
     </form>
@@ -35,9 +35,9 @@
 
 <!-- User list -->
 {% if users %}
-<div class="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-200">
+<div class="bg-white rounded-2xl shadow-sm overflow-hidden border border-stone-200">
   <table class="w-full text-sm">
-    <thead class="bg-gray-50 border-b border-gray-200 text-gray-600 uppercase text-xs tracking-wide">
+    <thead class="bg-stone-50 border-b border-stone-200 text-stone-600 uppercase text-xs tracking-wide">
       <tr>
         <th class="px-6 py-3 text-left">Username</th>
         <th class="px-6 py-3 text-left">Change Password</th>
@@ -46,18 +46,18 @@
     </thead>
     <tbody class="divide-y divide-gray-100">
       {% for u in users %}
-      <tr class="hover:bg-gray-50 align-middle">
-        <td class="px-6 py-4 font-semibold text-gray-800">
+      <tr class="hover:bg-stone-50 align-middle">
+        <td class="px-6 py-4 font-semibold text-stone-800">
           {{ u.RowKey }}
           {% if u.RowKey == current_user %}
-          <span class="ml-2 text-xs bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full">you</span>
+          <span class="ml-2 text-xs bg-stone-200 text-stone-700 px-2 py-0.5 rounded-full">you</span>
           {% endif %}
         </td>
 
         <!-- Change password inline -->
         <td class="px-6 py-4">
           <details>
-            <summary class="cursor-pointer text-blue-600 hover:text-blue-700 text-xs font-semibold select-none">
+            <summary class="cursor-pointer text-orange-800 hover:text-orange-900 text-xs font-semibold select-none">
               Change password
             </summary>
             <form method="post" action="/admin/users/{{ u.RowKey }}/password" class="flex gap-2 mt-2 items-center">
@@ -65,7 +65,7 @@
               <input name="password" type="password" required minlength="8" placeholder="New password"
                 class="input w-44" />
               <button type="submit"
-                class="bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
+                class="bg-orange-800 hover:bg-orange-900 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
                 Update
               </button>
             </form>
@@ -83,7 +83,7 @@
             </button>
           </form>
           {% else %}
-          <span class="text-gray-300 text-xs">—</span>
+          <span class="text-stone-300 text-xs">—</span>
           {% endif %}
         </td>
       </tr>
@@ -92,8 +92,8 @@
   </table>
 </div>
 {% else %}
-<div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-12 text-center">
-  <p class="text-gray-500">No users found.</p>
+<div class="bg-white rounded-2xl shadow-sm border border-stone-200 p-12 text-center">
+  <p class="text-stone-500">No users found.</p>
 </div>
 {% endif %}
 

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 260" role="img" aria-labelledby="title desc">
+  <title id="title">Arepa Lab</title>
+  <desc id="desc">A minimal round grilled arepa with shredded beef and cheese in a small side pocket.</desc>
+  <defs><clipPath id="pocket"><path d="M97 179Q171 204 246 157L244 177Q188 230 108 205Z"/></clipPath></defs>
+  <g transform="rotate(-17 160 130)" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M65 123C65 69 106 31 158 31C213 31 255 71 255 124L250 154C239 198 201 222 159 222C115 222 79 197 68 155Z" fill="#d4a25b" stroke="#674127" stroke-width="5"/>
+    <g clip-path="url(#pocket)">
+      <path d="M90 153H253V224H90Z" fill="#71432a"/>
+      <path d="m110 194 26 13m4-13 24 13m4-15 25 11m5-22 25 11m-2-21 17 10" fill="none" stroke="#c78c53" stroke-width="4"/>
+      <path d="m121 195 17 8m16-9 12 13m22-18 15 7m13-18 13 7" fill="none" stroke="#fff2cb" stroke-width="5"/>
+    </g>
+    <path d="M65 123C65 69 106 31 158 31C213 31 255 71 255 124C251 166 211 198 160 198C108 198 69 168 65 123Z" fill="#f2d99c" stroke="#674127" stroke-width="5"/>
+    <path d="m111 89 58-24m-60 58 96-39m-62 65 64-26" fill="none" stroke="#96602d" stroke-width="11"/>
+  </g>
+</svg>

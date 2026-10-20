@@ -8,7 +8,7 @@ from agent_framework.foundry import AnthropicFoundryClient
 
 load_dotenv()
 
-MCP_URL = "http://127.0.0.1:8000/mcp/"
+MCP_URL = os.environ.get("MCP_URL", "http://127.0.0.1:8000/mcp/")
 
 
 async def main() -> None:
@@ -18,7 +18,7 @@ async def main() -> None:
         base_url=os.environ["FOUNDRY_ENDPOINT"],
     )
 
-    mcp_tool = MCPStreamableHTTPTool(name="cupcake-store", url=MCP_URL)
+    mcp_tool = MCPStreamableHTTPTool(name="arepa-lab", url=MCP_URL)
     await mcp_tool.connect()
 
     try:
@@ -27,7 +27,7 @@ async def main() -> None:
 
         agent = Agent(
             client=chat_client,
-            name="cupcake-agent",
+            name="arepa-lab-agent",
             instructions=instructions,
             tools=mcp_tool,
         )

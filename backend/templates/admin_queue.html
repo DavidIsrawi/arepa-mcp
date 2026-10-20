@@ -1,9 +1,9 @@
 {% extends "admin_base.html" %}
 {% block title %}{% if mode == 'preparing' %}Preparing{% else %}Pickup{% endif %}{% endblock %}
 {% if mode == 'preparing' %}
-{% block nav_preparing %}underline decoration-slate-300{% endblock %}
+{% block nav_preparing %}underline decoration-amber-300{% endblock %}
 {% else %}
-{% block nav_pickup %}underline decoration-slate-300{% endblock %}
+{% block nav_pickup %}underline decoration-amber-300{% endblock %}
 {% endif %}
 
 {% block content %}
@@ -14,24 +14,24 @@
 {% set primary_class = 'bg-emerald-600 hover:bg-emerald-700' if is_prep else 'bg-indigo-600 hover:bg-indigo-700' %}
 
 <div class="flex items-center justify-between mb-6">
-    <h1 class="text-2xl font-bold text-gray-800">{{ title }}</h1>
-    <div class="text-sm text-gray-500">
+    <h1 class="text-2xl font-bold text-stone-800">{{ title }}</h1>
+    <div class="text-sm text-stone-500">
         <span id="queue-count">{{ orders|length }}</span> in queue
-        · <span id="queue-status" class="text-gray-400">live</span>
+        · <span id="queue-status" class="text-stone-600">live</span>
     </div>
 </div>
 
 {# ---- Live stock strip ------------------------------------------------- #}
-<div id="stock-strip" class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 mb-4 grid gap-3"
+<div id="stock-strip" class="bg-white rounded-2xl shadow-sm border border-stone-200 p-4 mb-4 grid gap-3"
     style="grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));">
     {% for f in stock %}
-    <div class="stock-tile flex flex-col items-center justify-center text-center px-2 py-2 rounded-lg border border-gray-100 bg-gray-50"
+    <div class="stock-tile flex flex-col items-center justify-center text-center px-2 py-2 rounded-lg border border-stone-100 bg-stone-50"
         data-id="{{ f.id }}">
         <div class="stock-num text-3xl font-extrabold leading-none
-            {% if f.stock <= 0 %}text-red-600{% elif f.stock <= 3 %}text-amber-600{% else %}text-gray-800{% endif %}">
+            {% if f.stock <= 0 %}text-red-600{% elif f.stock <= 3 %}text-amber-600{% else %}text-stone-800{% endif %}">
             {{ f.stock }}
         </div>
-        <div class="stock-name text-xs text-gray-500 mt-1 truncate w-full" title="{{ f.name }}">{{ f.name }}</div>
+        <div class="stock-name text-xs text-stone-500 mt-1 truncate w-full" title="{{ f.name }}">{{ f.name }}</div>
     </div>
     {% endfor %}
 </div>
@@ -41,18 +41,18 @@
     data-primary-label="{{ primary_label }}" data-primary-class="{{ primary_class }}">
     {# Initial server-rendered list. JS will replace this on every poll. #}
     {% if not orders %}
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-12 text-center text-gray-400">
-        Nothing here. {% if is_prep %}Waiting for new orders…{% else %}No cupcakes ready for pickup.{% endif %}
+    <div class="bg-white rounded-2xl shadow-sm border border-stone-200 p-12 text-center text-stone-600">
+        Nothing here. {% if is_prep %}Waiting for new orders…{% else %}No arepas ready for pickup.{% endif %}
     </div>
     {% else %}
     {% for o in orders %}
-    <div class="row bg-white rounded-xl shadow-sm border border-gray-200 px-5 py-4 flex items-center gap-4"
+    <div class="row bg-white rounded-xl shadow-sm border border-stone-200 px-5 py-4 flex items-center gap-4"
         data-id="{{ o.id }}">
         <div class="flex-1 min-w-0">
-            <div class="font-semibold text-gray-800 truncate">{{ o.customer_name }}</div>
-            <div class="text-sm text-gray-500 truncate">{{ o.flavor_name }}</div>
+            <div class="font-semibold text-stone-800 truncate">{{ o.customer_name }}</div>
+            <div class="text-sm text-stone-500 truncate">{{ o.flavor_name }}</div>
         </div>
-        <div class="time text-xs text-gray-400 whitespace-nowrap"
+        <div class="time text-xs text-stone-600 whitespace-nowrap"
             data-iso="{{ (o.ready_at if not is_prep else o.created_at) }}">…</div>
         <div class="flex gap-2">
             <button class="btn-primary {{ primary_class }} text-white text-sm font-semibold px-4 py-2 rounded-lg">
@@ -99,13 +99,13 @@
         function renderRow(o) {
             const iso = timeField === 'ready_at' ? (o.ready_at || o.created_at || '') : (o.created_at || '');
             return `
-        <div class="row bg-white rounded-xl shadow-sm border border-gray-200 px-5 py-4 flex items-center gap-4"
+        <div class="row bg-white rounded-xl shadow-sm border border-stone-200 px-5 py-4 flex items-center gap-4"
              data-id="${esc(o.id)}">
           <div class="flex-1 min-w-0">
-            <div class="font-semibold text-gray-800 truncate">${esc(o.customer_name)}</div>
-            <div class="text-sm text-gray-500 truncate">${esc(o.flavor_name)}</div>
+            <div class="font-semibold text-stone-800 truncate">${esc(o.customer_name)}</div>
+            <div class="text-sm text-stone-500 truncate">${esc(o.flavor_name)}</div>
           </div>
-          <div class="time text-xs text-gray-400 whitespace-nowrap" data-iso="${esc(iso)}">${esc(timeAgo(iso))}</div>
+          <div class="time text-xs text-stone-600 whitespace-nowrap" data-iso="${esc(iso)}">${esc(timeAgo(iso))}</div>
           <div class="flex gap-2">
             <button class="btn-primary ${primaryClass} text-white text-sm font-semibold px-4 py-2 rounded-lg">
               ${esc(primaryLabel)}
@@ -120,8 +120,8 @@
         function renderEmpty() {
             const msg = mode === 'preparing'
                 ? 'Nothing here. Waiting for new orders…'
-                : 'No cupcakes ready for pickup.';
-            return `<div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-12 text-center text-gray-400">${msg}</div>`;
+                : 'No arepas ready for pickup.';
+            return `<div class="bg-white rounded-2xl shadow-sm border border-stone-200 p-12 text-center text-stone-600">${msg}</div>`;
         }
 
         function paint(orders) {
@@ -145,11 +145,11 @@
             stockStrip.innerHTML = stock.map((f) => {
                 const cls = f.stock <= 0 ? 'text-red-600'
                     : f.stock <= 3 ? 'text-amber-600'
-                        : 'text-gray-800';
+                        : 'text-stone-800';
                 return `
-                <div class="stock-tile flex flex-col items-center justify-center text-center px-2 py-2 rounded-lg border border-gray-100 bg-gray-50" data-id="${esc(f.id)}">
+                <div class="stock-tile flex flex-col items-center justify-center text-center px-2 py-2 rounded-lg border border-stone-100 bg-stone-50" data-id="${esc(f.id)}">
                     <div class="stock-num text-3xl font-extrabold leading-none ${cls}">${esc(f.stock)}</div>
-                    <div class="stock-name text-xs text-gray-500 mt-1 truncate w-full" title="${esc(f.name)}">${esc(f.name)}</div>
+                    <div class="stock-name text-xs text-stone-500 mt-1 truncate w-full" title="${esc(f.name)}">${esc(f.name)}</div>
                 </div>`;
             }).join('');
         }
@@ -166,12 +166,12 @@
                 failures = 0;
                 statusEl.textContent = 'live';
                 statusEl.classList.remove('text-red-600');
-                statusEl.classList.add('text-gray-400');
+                statusEl.classList.add('text-stone-600');
             } catch (e) {
                 failures += 1;
                 if (failures >= 2) {
                     statusEl.textContent = 'offline';
-                    statusEl.classList.remove('text-gray-400');
+                    statusEl.classList.remove('text-stone-600');
                     statusEl.classList.add('text-red-600');
                 }
             }

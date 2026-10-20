@@ -1,10 +1,10 @@
 {% extends "admin_base.html" %}
 {% block title %}Orders{% endblock %}
-{% block nav_orders %}underline decoration-slate-300{% endblock %}
+{% block nav_orders %}underline decoration-amber-300{% endblock %}
 
 {% block content %}
 <div class="flex items-center justify-between mb-6">
-  <h1 class="text-2xl font-bold text-gray-800">Orders</h1>
+  <h1 class="text-2xl font-bold text-stone-800">Orders</h1>
   <form method="post" action="/admin/reset" onsubmit="return confirm('Clear ALL orders? This cannot be undone.')">
     <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}" />
     <button type="submit"
@@ -25,10 +25,10 @@
 {% if o.kind == 'test' %}{% set ns.test = ns.test + 1 %}{% else %}{% set ns.real = ns.real + 1 %}{% endif %}
 {% endfor %}
 
-<div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-3 mb-4 flex flex-wrap gap-2 items-center">
-  <span class="text-xs uppercase tracking-wider text-gray-500 mr-2">Status</span>
+<div class="bg-white rounded-2xl shadow-sm border border-stone-200 p-3 mb-4 flex flex-wrap gap-2 items-center">
+  <span class="text-xs uppercase tracking-wider text-stone-500 mr-2">Status</span>
   <button type="button" data-filter-status="all"
-    class="filter-btn active bg-slate-800 text-white text-xs font-semibold px-3 py-1.5 rounded-full">All
+    class="filter-btn active bg-stone-800 text-white text-xs font-semibold px-3 py-1.5 rounded-full">All
     ({{ orders|length }})</button>
   <button type="button" data-filter-status="pending"
     class="filter-btn bg-yellow-100 hover:bg-yellow-200 text-yellow-800 text-xs font-semibold px-3 py-1.5 rounded-full">Pending
@@ -37,26 +37,26 @@
     class="filter-btn bg-green-100 hover:bg-green-200 text-green-800 text-xs font-semibold px-3 py-1.5 rounded-full">Ready
     ({{ ns.ready }})</button>
   <button type="button" data-filter-status="collected"
-    class="filter-btn bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold px-3 py-1.5 rounded-full">Collected
+    class="filter-btn bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold px-3 py-1.5 rounded-full">Collected
     ({{ ns.collected }})</button>
   <button type="button" data-filter-status="cancelled"
     class="filter-btn bg-red-100 hover:bg-red-200 text-red-700 text-xs font-semibold px-3 py-1.5 rounded-full">Cancelled
     ({{ ns.cancelled }})</button>
 
-  <span class="w-px h-6 bg-gray-200 mx-2"></span>
+  <span class="w-px h-6 bg-stone-200 mx-2"></span>
 
-  <span class="text-xs uppercase tracking-wider text-gray-500 mr-2">Kind</span>
+  <span class="text-xs uppercase tracking-wider text-stone-500 mr-2">Kind</span>
   <button type="button" data-filter-kind="all"
-    class="filter-btn-kind active bg-slate-800 text-white text-xs font-semibold px-3 py-1.5 rounded-full">All</button>
+    class="filter-btn-kind active bg-stone-800 text-white text-xs font-semibold px-3 py-1.5 rounded-full">All</button>
   <button type="button" data-filter-kind="real"
-    class="filter-btn-kind bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold px-3 py-1.5 rounded-full">Real
+    class="filter-btn-kind bg-stone-200 hover:bg-stone-300 text-stone-700 text-xs font-semibold px-3 py-1.5 rounded-full">Real
     ({{ ns.real }})</button>
   <button type="button" data-filter-kind="test"
     class="filter-btn-kind bg-sky-100 hover:bg-sky-200 text-sky-800 text-xs font-semibold px-3 py-1.5 rounded-full">Test
     ({{ ns.test }})</button>
 
-  <input id="orders-search" type="search" placeholder="Search name or flavour…"
-    class="ml-auto text-sm px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:border-slate-500 w-64" />
+  <input id="orders-search" type="search" placeholder="Search name or arepa…"
+    class="ml-auto text-sm px-3 py-1.5 rounded-lg border border-stone-200 focus:outline-none focus:border-stone-500 w-64" />
 </div>
 
 <style>
@@ -67,12 +67,12 @@
   }
 </style>
 
-<div class="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-200">
+<div class="bg-white rounded-2xl shadow-sm overflow-hidden border border-stone-200">
   <table class="w-full text-sm">
-    <thead class="bg-gray-50 border-b border-gray-200 text-gray-600 uppercase text-xs tracking-wide">
+    <thead class="bg-stone-50 border-b border-stone-200 text-stone-600 uppercase text-xs tracking-wide">
       <tr>
         <th class="px-6 py-3 text-left">Name</th>
-        <th class="px-6 py-3 text-left">Flavour</th>
+        <th class="px-6 py-3 text-left">Arepa</th>
         <th class="px-6 py-3 text-left">Kind</th>
         <th class="px-6 py-3 text-left">Status</th>
         <th class="px-6 py-3 text-left">Time</th>
@@ -81,19 +81,19 @@
     </thead>
     <tbody id="orders-tbody" class="divide-y divide-gray-100">
       {% for o in orders %}
-      <tr class="hover:bg-gray-50 order-row" data-status="{{ o.status }}" data-kind="{{ o.kind }}"
+      <tr class="hover:bg-stone-50 order-row" data-status="{{ o.status }}" data-kind="{{ o.kind }}"
         data-search="{{ (o.customer_name ~ ' ' ~ o.flavor_name)|lower }}">
-        <td class="px-6 py-4 font-semibold text-gray-800">
+        <td class="px-6 py-4 font-semibold text-stone-800">
           {{ o.customer_name }}
-          {% if o.customer_id %}<span class="block text-[10px] text-gray-400 font-mono">{{ o.customer_id }}</span>{%
+          {% if o.customer_id %}<span class="block text-[10px] text-stone-600 font-mono">{{ o.customer_id }}</span>{%
           endif %}
         </td>
-        <td class="px-6 py-4 text-gray-600">{{ o.flavor_name }}</td>
+        <td class="px-6 py-4 text-stone-600">{{ o.flavor_name }}</td>
         <td class="px-6 py-4">
           {% if o.kind == 'test' %}
           <span class="bg-sky-100 text-sky-800 text-xs font-semibold px-3 py-1 rounded-full">TEST</span>
           {% else %}
-          <span class="bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-1 rounded-full">REAL</span>
+          <span class="bg-stone-200 text-stone-700 text-xs font-semibold px-3 py-1 rounded-full">REAL</span>
           {% endif %}
         </td>
         <td class="px-6 py-4">
@@ -104,10 +104,10 @@
           {% elif o.status == 'cancelled' %}
           <span class="bg-red-100 text-red-700 text-xs font-semibold px-3 py-1 rounded-full">Cancelled</span>
           {% else %}
-          <span class="bg-gray-100 text-gray-600 text-xs font-semibold px-3 py-1 rounded-full">Collected</span>
+          <span class="bg-stone-100 text-stone-600 text-xs font-semibold px-3 py-1 rounded-full">Collected</span>
           {% endif %}
         </td>
-        <td class="px-6 py-4 text-gray-400 text-xs">{{ o.created_at }}</td>
+        <td class="px-6 py-4 text-stone-600 text-xs">{{ o.created_at }}</td>
         <td class="px-6 py-4">
           <div class="flex gap-2">
             {% if o.status == 'pending' %}
@@ -124,7 +124,7 @@
               <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}" />
               <input type="hidden" name="status" value="collected" />
               <button type="submit"
-                class="bg-gray-500 hover:bg-gray-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+                class="bg-stone-500 hover:bg-stone-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
                 Mark Collected
               </button>
             </form>
@@ -135,7 +135,7 @@
       {% endfor %}
     </tbody>
   </table>
-  <div id="orders-empty" class="hidden p-12 text-center text-gray-400 text-sm">
+  <div id="orders-empty" class="hidden p-12 text-center text-stone-600 text-sm">
     No orders match the current filter.
   </div>
 </div>
@@ -191,10 +191,10 @@
   })();
 </script>
 {% else %}
-<div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-16 text-center">
+<div class="bg-white rounded-2xl shadow-sm border border-stone-200 p-16 text-center">
   <p class="text-5xl mb-4">📭</p>
-  <p class="text-gray-500 text-lg">No orders yet.</p>
-  <p class="text-gray-400 text-sm mt-1">They'll appear here when agents start ordering.</p>
+  <p class="text-stone-500 text-lg">No orders yet.</p>
+  <p class="text-stone-600 text-sm mt-1">They'll appear here when agents start ordering.</p>
 </div>
 {% endif %}
 {% endblock %}

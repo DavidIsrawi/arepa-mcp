@@ -5,30 +5,32 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="csrf-token" content="{{ csrf_token(request) }}" />
-  <title>{% block title %}Admin{% endblock %} — Sparkles</title>
+  <title>{% block title %}Admin{% endblock %} — Arepa Lab</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  {% include "brand_head.html" %}
 </head>
 
-<body class="bg-gray-50 min-h-screen">
+<body class="admin-shell">
 
   <!-- Top nav -->
-  <nav class="bg-slate-800 text-white shadow-md sticky top-0 z-10">
-    <div class="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
-      <a href="/admin/orders" class="text-xl font-bold flex items-center gap-2">
-        🧁 <span>Cupcake Admin</span>
+  <nav class="admin-nav wood" aria-label="Store administration">
+    <div class="admin-nav-inner">
+      <a href="/admin/orders" class="brand-lockup">
+        <img class="brand-logo" src="{{ url_for('static', path='arepa-lab.svg') }}" alt="" width="70" height="53" />
+        <span class="brand-name">Arepa Lab</span>
       </a>
-      <div class="flex items-center gap-6 text-sm font-medium">
-        <a href="/admin/preparing" class="hover:text-slate-300 {% block nav_preparing %}{% endblock %}">Preparing</a>
-        <a href="/admin/pickup" class="hover:text-slate-300 {% block nav_pickup %}{% endblock %}">Pickup</a>
-        <a href="/admin/orders" class="hover:text-slate-300 {% block nav_orders %}{% endblock %}">Orders</a>
-        <a href="/admin/flavors" class="hover:text-slate-300 {% block nav_flavors %}{% endblock %}">Flavors</a>
-        <a href="/admin/customers" class="hover:text-slate-300 {% block nav_customers %}{% endblock %}">Customers</a>
-        <a href="/admin/users" class="hover:text-slate-300 {% block nav_users %}{% endblock %}">Users</a>
-        <a href="/dashboard" target="_blank" class="hover:text-slate-300 border border-slate-500 rounded px-3 py-1">📺
+      <div class="admin-links">
+        <a href="/admin/preparing" class="hover:text-stone-300 {% block nav_preparing %}{% endblock %}">Preparing</a>
+        <a href="/admin/pickup" class="hover:text-stone-300 {% block nav_pickup %}{% endblock %}">Pickup</a>
+        <a href="/admin/orders" class="hover:text-stone-300 {% block nav_orders %}{% endblock %}">Orders</a>
+        <a href="/admin/flavors" class="hover:text-stone-300 {% block nav_flavors %}{% endblock %}">Menu</a>
+        <a href="/admin/customers" class="hover:text-stone-300 {% block nav_customers %}{% endblock %}">Customers</a>
+        <a href="/admin/users" class="hover:text-stone-300 {% block nav_users %}{% endblock %}">Users</a>
+        <a href="/dashboard" target="_blank" class="hover:text-stone-300 border border-stone-500 rounded px-3 py-1">📺
           Dashboard</a>
         <form method="post" action="/admin/logout">
           <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}" />
-          <button type="submit" class="bg-slate-700 hover:bg-slate-900 px-3 py-1 rounded transition-colors">
+          <button type="submit" class="logout">
             Logout
           </button>
         </form>
@@ -50,7 +52,8 @@
   {% endif %}
 
   <!-- Page content -->
-  <main class="max-w-6xl mx-auto px-6 py-8">
+  <main class="admin-content">
+    <p class="admin-event">{{ workshop().event_name }} · Store administration</p>
     {% block content %}{% endblock %}
   </main>
 

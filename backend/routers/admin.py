@@ -7,12 +7,14 @@ from fastapi.templating import Jinja2Templates
 
 from backend import rate_limit, storage
 from backend.auth import require_admin
+from backend.branding import workshop_context
 from backend.csrf import csrf_token, require_csrf
 
 router = APIRouter(prefix="/admin")
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
 # Expose csrf_token() to every template.
 templates.env.globals["csrf_token"] = csrf_token
+templates.env.globals["workshop"] = workshop_context
 
 # ── Order status constants ────────────────────────────────────────────────────
 STATUS_PENDING = "pending"
@@ -340,10 +342,10 @@ async def create_flavor(
     if not flavor_id:
         _flash(request, "error", "Could not generate a valid ID from that name.")
     elif storage.get_flavor(flavor_id):
-        _flash(request, "error", f"A flavour with id '{flavor_id}' already exists.")
+        _flash(request, "error", f"An arepa with id '{flavor_id}' already exists.")
     else:
         storage.create_flavor(flavor_id, name, description, price, max(0, stock), image_url)
-        _flash(request, "success", f"Flavour '{name}' added!")
+        _flash(request, "success", f"Arepa '{name}' added!")
     return RedirectResponse(url="/admin/flavors", status_code=302)
 
 
@@ -381,7 +383,7 @@ async def edit_flavor(
 
     if fields:
         storage.update_flavor(flavor_id, **fields)
-        _flash(request, "success", "Flavour updated.")
+        _flash(request, "success", "Arepa updated.")
     return RedirectResponse(url="/admin/flavors", status_code=302)
 
 
@@ -393,7 +395,7 @@ async def delete_flavor(
     _csrf: None = Depends(require_csrf),
 ):
     storage.delete_flavor(flavor_id)
-    _flash(request, "success", "Flavour deleted.")
+    _flash(request, "success", "Arepa deleted.")
     return RedirectResponse(url="/admin/flavors", status_code=302)
 
 

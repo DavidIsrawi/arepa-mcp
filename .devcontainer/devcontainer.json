@@ -1,5 +1,5 @@
 {
-  "name": "Cupcake MCP",
+  "name": "Arepa Lab — SHPE 2026",
   "image": "mcr.microsoft.com/devcontainers/python:3.12",
   "features": {
     // Docker-in-Docker — needed for azd to build & push the container image
@@ -23,7 +23,7 @@
   ],
   "portsAttributes": {
     "8000": {
-      "label": "Sparkles",
+      "label": "Arepa Lab",
       "onAutoForward": "notify"
     },
     "10002": {
