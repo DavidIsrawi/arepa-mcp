@@ -74,18 +74,19 @@ def _create_order(status: str) -> None:
         storage.decrement_stock(flavor_id)
 
     order_id = str(uuid.uuid4())
-    storage._client().get_table_client(storage.TABLE_ORDERS).create_entity(
-        {
-            "PartitionKey": "order",
-            "RowKey": order_id,
-            "flavor_id": flavor_id,
-            "customer_id": customer_id,
-            "customer_name": display_name,
-            "kind": "real",
-            "status": status,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }
-    )
+    with storage._client() as svc:
+        svc.get_table_client(storage.TABLE_ORDERS).create_entity(
+            {
+                "PartitionKey": "order",
+                "RowKey": order_id,
+                "flavor_id": flavor_id,
+                "customer_id": customer_id,
+                "customer_name": display_name,
+                "kind": "real",
+                "status": status,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
     storage.increment_real_orders(customer_id)
 
 

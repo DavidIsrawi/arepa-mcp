@@ -64,6 +64,12 @@ class MemoryService:
     def __init__(self):
         self.tables = {}
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        return False
+
     def create_table(self, name):
         if name in self.tables:
             raise ResourceExistsError("Table exists")

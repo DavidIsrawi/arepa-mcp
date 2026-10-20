@@ -24,6 +24,7 @@ def _generate_customer_id() -> str:
 
 
 def _client() -> TableServiceClient:
+    """Return a socket-owning service client; callers must use it in a with block."""
     return TableServiceClient.from_connection_string(CONN_STR)
 
 
@@ -36,32 +37,34 @@ def _odata_escape(value: str) -> str:
 
 def ensure_tables_and_seed() -> None:
     """Create tables if absent, then seed the default admin user."""
-    svc = _client()
-    for name in [TABLE_FLAVORS, TABLE_ORDERS, TABLE_USERS, TABLE_CUSTOMERS]:
-        try:
-            svc.create_table(name)
-        except ResourceExistsError:
-            pass
+    with _client() as svc:
+        for name in [TABLE_FLAVORS, TABLE_ORDERS, TABLE_USERS, TABLE_CUSTOMERS]:
+            try:
+                svc.create_table(name)
+            except ResourceExistsError:
+                pass
 
-    users = svc.get_table_client(TABLE_USERS)
-    try:
-        users.get_entity("user", "admin")
-    except ResourceNotFoundError:
-        pw_hash = bcrypt.hashpw(b"admin", bcrypt.gensalt()).decode()
-        users.create_entity(
-            {"PartitionKey": "user", "RowKey": "admin", "password_hash": pw_hash}
-        )
+        users = svc.get_table_client(TABLE_USERS)
+        try:
+            users.get_entity("user", "admin")
+        except ResourceNotFoundError:
+            pw_hash = bcrypt.hashpw(b"admin", bcrypt.gensalt()).decode()
+            users.create_entity(
+                {"PartitionKey": "user", "RowKey": "admin", "password_hash": pw_hash}
+            )
 
 
 # ── Flavors ────────────────────────────────────────────────────────────────────
 
 def list_flavors() -> list:
-    return list(_client().get_table_client(TABLE_FLAVORS).query_entities("PartitionKey eq 'flavor'"))
+    with _client() as svc:
+        return list(svc.get_table_client(TABLE_FLAVORS).query_entities("PartitionKey eq 'flavor'"))
 
 
 def get_flavor(flavor_id: str) -> dict | None:
     try:
-        return _client().get_table_client(TABLE_FLAVORS).get_entity("flavor", flavor_id)
+        with _client() as svc:
+            return svc.get_table_client(TABLE_FLAVORS).get_entity("flavor", flavor_id)
     except ResourceNotFoundError:
         return None
 
@@ -69,28 +72,31 @@ def get_flavor(flavor_id: str) -> dict | None:
 def create_flavor(
     flavor_id: str, name: str, description: str, price: float, stock: int, image_url: str = ""
 ) -> None:
-    _client().get_table_client(TABLE_FLAVORS).create_entity(
-        {
-            "PartitionKey": "flavor",
-            "RowKey": flavor_id,
-            "name": name,
-            "description": description,
-            "price": float(price),
-            "stock": int(stock),
-            "image_url": image_url,
-        }
-    )
+    with _client() as svc:
+        svc.get_table_client(TABLE_FLAVORS).create_entity(
+            {
+                "PartitionKey": "flavor",
+                "RowKey": flavor_id,
+                "name": name,
+                "description": description,
+                "price": float(price),
+                "stock": int(stock),
+                "image_url": image_url,
+            }
+        )
 
 
 def update_flavor(flavor_id: str, **fields) -> None:
-    table = _client().get_table_client(TABLE_FLAVORS)
-    entity = table.get_entity("flavor", flavor_id)
-    entity.update(fields)
-    table.update_entity(entity, mode=UpdateMode.MERGE)
+    with _client() as svc:
+        table = svc.get_table_client(TABLE_FLAVORS)
+        entity = table.get_entity("flavor", flavor_id)
+        entity.update(fields)
+        table.update_entity(entity, mode=UpdateMode.MERGE)
 
 
 def delete_flavor(flavor_id: str) -> None:
-    _client().get_table_client(TABLE_FLAVORS).delete_entity("flavor", flavor_id)
+    with _client() as svc:
+        svc.get_table_client(TABLE_FLAVORS).delete_entity("flavor", flavor_id)
 
 
 def decrement_stock(flavor_id: str) -> bool:
@@ -98,28 +104,30 @@ def decrement_stock(flavor_id: str) -> bool:
     Decrement stock by 1. Returns False if already at 0.
     Not atomic — race condition is negligible at workshop scale.
     """
-    table = _client().get_table_client(TABLE_FLAVORS)
-    try:
-        entity = table.get_entity("flavor", flavor_id)
-    except ResourceNotFoundError:
-        return False
-    if int(entity.get("stock", 0)) <= 0:
-        return False
-    entity["stock"] = int(entity["stock"]) - 1
-    table.update_entity(entity, mode=UpdateMode.REPLACE)
-    return True
+    with _client() as svc:
+        table = svc.get_table_client(TABLE_FLAVORS)
+        try:
+            entity = table.get_entity("flavor", flavor_id)
+        except ResourceNotFoundError:
+            return False
+        if int(entity.get("stock", 0)) <= 0:
+            return False
+        entity["stock"] = int(entity["stock"]) - 1
+        table.update_entity(entity, mode=UpdateMode.REPLACE)
+        return True
 
 
 def increment_stock(flavor_id: str) -> bool:
     """Increment stock by 1 (used to refund a cancelled real order)."""
-    table = _client().get_table_client(TABLE_FLAVORS)
-    try:
-        entity = table.get_entity("flavor", flavor_id)
-    except ResourceNotFoundError:
-        return False
-    entity["stock"] = int(entity.get("stock", 0)) + 1
-    table.update_entity(entity, mode=UpdateMode.REPLACE)
-    return True
+    with _client() as svc:
+        table = svc.get_table_client(TABLE_FLAVORS)
+        try:
+            entity = table.get_entity("flavor", flavor_id)
+        except ResourceNotFoundError:
+            return False
+        entity["stock"] = int(entity.get("stock", 0)) + 1
+        table.update_entity(entity, mode=UpdateMode.REPLACE)
+        return True
 
 
 def stock_label(stock: int) -> tuple[str, str]:
@@ -136,9 +144,10 @@ def stock_label(stock: int) -> tuple[str, str]:
 # ── Orders ─────────────────────────────────────────────────────────────────────
 
 def list_orders() -> list:
-    orders = list(
-        _client().get_table_client(TABLE_ORDERS).query_entities("PartitionKey eq 'order'")
-    )
+    with _client() as svc:
+        orders = list(
+            svc.get_table_client(TABLE_ORDERS).query_entities("PartitionKey eq 'order'")
+        )
     # Newest first.
     return sorted(orders, key=lambda o: o.get("created_at", ""), reverse=True)
 
@@ -149,7 +158,8 @@ def list_orders_by_status(status: str, kind: str | None = None) -> list:
     flt = f"PartitionKey eq 'order' and status eq '{safe_status}'"
     if kind is not None:
         flt += f" and kind eq '{_odata_escape(kind)}'"
-    rows = list(_client().get_table_client(TABLE_ORDERS).query_entities(flt))
+    with _client() as svc:
+        rows = list(svc.get_table_client(TABLE_ORDERS).query_entities(flt))
     return sorted(rows, key=lambda o: o.get("created_at", ""), reverse=True)
 
 
@@ -157,92 +167,100 @@ def get_active_order_for_customer(customer_id: str, kind: str) -> dict | None:
     """Return a pending or ready order of the given kind for this customer_id."""
     safe_cid = _odata_escape(customer_id)
     safe_kind = _odata_escape(kind)
-    results = list(
-        _client()
-        .get_table_client(TABLE_ORDERS)
-        .query_entities(
-            f"PartitionKey eq 'order' and customer_id eq '{safe_cid}' "
-            f"and kind eq '{safe_kind}'"
+    with _client() as svc:
+        results = list(
+            svc.get_table_client(TABLE_ORDERS).query_entities(
+                f"PartitionKey eq 'order' and customer_id eq '{safe_cid}' "
+                f"and kind eq '{safe_kind}'"
+            )
         )
-    )
     active = [o for o in results if o.get("status") in ("pending", "ready")]
     return active[0] if active else None
 
 
 def create_order(flavor_id: str, customer_id: str, customer_name: str, kind: str) -> str:
     order_id = str(uuid.uuid4())
-    _client().get_table_client(TABLE_ORDERS).create_entity(
-        {
-            "PartitionKey": "order",
-            "RowKey": order_id,
-            "flavor_id": flavor_id,
-            "customer_id": customer_id,
-            "customer_name": customer_name,
-            "kind": kind,
-            "status": "pending",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }
-    )
+    with _client() as svc:
+        svc.get_table_client(TABLE_ORDERS).create_entity(
+            {
+                "PartitionKey": "order",
+                "RowKey": order_id,
+                "flavor_id": flavor_id,
+                "customer_id": customer_id,
+                "customer_name": customer_name,
+                "kind": kind,
+                "status": "pending",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
     return order_id
 
 
 def get_order(order_id: str) -> dict | None:
     try:
-        return _client().get_table_client(TABLE_ORDERS).get_entity("order", order_id)
+        with _client() as svc:
+            return svc.get_table_client(TABLE_ORDERS).get_entity("order", order_id)
     except ResourceNotFoundError:
         return None
 
 
 def update_order_status(order_id: str, status: str) -> None:
-    table = _client().get_table_client(TABLE_ORDERS)
-    entity = table.get_entity("order", order_id)
-    entity["status"] = status
-    now = datetime.now(timezone.utc).isoformat()
-    entity["status_changed_at"] = now
-    if status == "ready" and not entity.get("ready_at"):
-        entity["ready_at"] = now
-    table.update_entity(entity, mode=UpdateMode.MERGE)
+    with _client() as svc:
+        table = svc.get_table_client(TABLE_ORDERS)
+        entity = table.get_entity("order", order_id)
+        entity["status"] = status
+        now = datetime.now(timezone.utc).isoformat()
+        entity["status_changed_at"] = now
+        if status == "ready" and not entity.get("ready_at"):
+            entity["ready_at"] = now
+        table.update_entity(entity, mode=UpdateMode.MERGE)
 
 
 def clear_all_orders() -> int:
     """Delete every order row. Returns number of rows deleted."""
-    table = _client().get_table_client(TABLE_ORDERS)
-    orders = list(table.query_entities("PartitionKey eq 'order'"))
-    for order in orders:
-        table.delete_entity("order", order["RowKey"])
+    with _client() as svc:
+        table = svc.get_table_client(TABLE_ORDERS)
+        orders = list(table.query_entities("PartitionKey eq 'order'"))
+        for order in orders:
+            table.delete_entity("order", order["RowKey"])
     return len(orders)
 
 
 # ── Users ──────────────────────────────────────────────────────────────────────
 
 def list_users() -> list:
-    return list(_client().get_table_client(TABLE_USERS).query_entities("PartitionKey eq 'user'"))
+    with _client() as svc:
+        return list(svc.get_table_client(TABLE_USERS).query_entities("PartitionKey eq 'user'"))
 
 
 def get_user(username: str) -> dict | None:
     try:
-        return _client().get_table_client(TABLE_USERS).get_entity("user", username)
+        with _client() as svc:
+            return svc.get_table_client(TABLE_USERS).get_entity("user", username)
     except ResourceNotFoundError:
         return None
 
 
 def create_user(username: str, password: str) -> None:
     pw_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-    _client().get_table_client(TABLE_USERS).create_entity(
-        {"PartitionKey": "user", "RowKey": username, "password_hash": pw_hash}
-    )
+    with _client() as svc:
+        svc.get_table_client(TABLE_USERS).create_entity(
+            {"PartitionKey": "user", "RowKey": username, "password_hash": pw_hash}
+        )
 
 
 def update_user_password(username: str, password: str) -> None:
     pw_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-    table = _client().get_table_client(TABLE_USERS)
-    entity = table.get_entity("user", username)
-    entity["password_hash"] = pw_hash
-    table.update_entity(entity, mode=UpdateMode.MERGE)
+    with _client() as svc:
+        table = svc.get_table_client(TABLE_USERS)
+        entity = table.get_entity("user", username)
+        entity["password_hash"] = pw_hash
+        table.update_entity(entity, mode=UpdateMode.MERGE)
 
 
 def delete_user(username: str) -> None:
-    _client().get_table_client(TABLE_USERS).delete_entity("user", username)
+    with _client() as svc:
+        svc.get_table_client(TABLE_USERS).delete_entity("user", username)
 
 
 def verify_password(username: str, password: str) -> bool:
@@ -256,54 +274,59 @@ def verify_password(username: str, password: str) -> bool:
 
 def create_customer(first_name: str, last_name: str, city: str) -> str:
     """Allocate a fresh customer_id and persist the customer row. Retries on collision."""
-    table = _client().get_table_client(TABLE_CUSTOMERS)
-    display_name = f"{first_name} {last_name}".strip()
-    for _ in range(5):
-        cid = _generate_customer_id()
-        try:
-            table.create_entity(
-                {
-                    "PartitionKey": "customer",
-                    "RowKey": cid,
-                    "display_name": display_name,
-                    "first_name": first_name,
-                    "last_name": last_name,
-                    "city": city,
-                    "created_at": datetime.now(timezone.utc).isoformat(),
-                    "real_orders_count": 0,
-                }
-            )
-            return cid
-        except ResourceExistsError:
-            continue
+    with _client() as svc:
+        table = svc.get_table_client(TABLE_CUSTOMERS)
+        display_name = f"{first_name} {last_name}".strip()
+        for _ in range(5):
+            cid = _generate_customer_id()
+            try:
+                table.create_entity(
+                    {
+                        "PartitionKey": "customer",
+                        "RowKey": cid,
+                        "display_name": display_name,
+                        "first_name": first_name,
+                        "last_name": last_name,
+                        "city": city,
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                        "real_orders_count": 0,
+                    }
+                )
+                return cid
+            except ResourceExistsError:
+                continue
     raise RuntimeError("Could not allocate a unique customer_id after 5 attempts")
 
 
 def get_customer(customer_id: str) -> dict | None:
     try:
-        return _client().get_table_client(TABLE_CUSTOMERS).get_entity("customer", customer_id)
+        with _client() as svc:
+            return svc.get_table_client(TABLE_CUSTOMERS).get_entity("customer", customer_id)
     except ResourceNotFoundError:
         return None
 
 
 def list_customers() -> list:
-    return list(
-        _client().get_table_client(TABLE_CUSTOMERS).query_entities("PartitionKey eq 'customer'")
-    )
+    with _client() as svc:
+        return list(
+            svc.get_table_client(TABLE_CUSTOMERS).query_entities("PartitionKey eq 'customer'")
+        )
 
 
 def increment_real_orders(customer_id: str) -> int:
-    table = _client().get_table_client(TABLE_CUSTOMERS)
-    entity = table.get_entity("customer", customer_id)
-    entity["real_orders_count"] = int(entity.get("real_orders_count", 0)) + 1
-    table.update_entity(entity, mode=UpdateMode.MERGE)
-    return entity["real_orders_count"]
+    with _client() as svc:
+        table = svc.get_table_client(TABLE_CUSTOMERS)
+        entity = table.get_entity("customer", customer_id)
+        entity["real_orders_count"] = int(entity.get("real_orders_count", 0)) + 1
+        table.update_entity(entity, mode=UpdateMode.MERGE)
+        return entity["real_orders_count"]
 
 
 def decrement_real_orders(customer_id: str) -> int:
     """Refund the lifetime real-order count by 1, never going below zero."""
-    table = _client().get_table_client(TABLE_CUSTOMERS)
-    entity = table.get_entity("customer", customer_id)
-    entity["real_orders_count"] = max(0, int(entity.get("real_orders_count", 0)) - 1)
-    table.update_entity(entity, mode=UpdateMode.MERGE)
-    return entity["real_orders_count"]
+    with _client() as svc:
+        table = svc.get_table_client(TABLE_CUSTOMERS)
+        entity = table.get_entity("customer", customer_id)
+        entity["real_orders_count"] = max(0, int(entity.get("real_orders_count", 0)) - 1)
+        table.update_entity(entity, mode=UpdateMode.MERGE)
+        return entity["real_orders_count"]
