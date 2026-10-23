@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 import xml.etree.ElementTree as ET
 
+import bcrypt
 from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
 from azure.data.tables import UpdateMode
 from fastapi.testclient import TestClient
@@ -87,6 +88,7 @@ class StoreFixture:
         self.enterContext(patch.dict(os.environ, {
             "WORKSHOP_URL": "", "WORKSHOP_TRAINING_KEY": "", "VOUCHER_SECRET": "test-only",
         }))
+        os.environ.pop("INITIAL_ADMIN_PASSWORD", None)
         self.enterContext(patch.dict(rate_limit._attempts, {}, clear=True))
         public._dash_cache.update(at=0.0, data=None)
         storage.ensure_tables_and_seed()
@@ -99,6 +101,39 @@ class StoreFixture:
         args = dict(flavor_id="lab-special", customer_id=self.customer_id, kind=kind, voucher_code=self.code)
         args.update(kwargs)
         return mcp_server.order_arepa(**args)
+
+
+class AdminBootstrapTests(unittest.TestCase):
+    def setUp(self):
+        self.service = MemoryService()
+        self.enterContext(patch.object(storage, "_client", return_value=self.service))
+        self.enterContext(patch.dict(os.environ))
+        os.environ.pop("INITIAL_ADMIN_PASSWORD", None)
+
+    def password_hash(self):
+        return self.service.get_table_client(storage.TABLE_USERS).get_entity("user", "admin")["password_hash"].encode()
+
+    def test_local_default_is_preserved(self):
+        storage.ensure_tables_and_seed()
+        self.assertTrue(bcrypt.checkpw(b"admin", self.password_hash()))
+
+    def test_deployment_password_and_existing_account_are_preserved(self):
+        os.environ["INITIAL_ADMIN_PASSWORD"] = "a-strong-deployment-password"
+        storage.ensure_tables_and_seed()
+        original = self.password_hash()
+        self.assertTrue(bcrypt.checkpw(b"a-strong-deployment-password", original))
+        os.environ["INITIAL_ADMIN_PASSWORD"] = "another-strong-password"
+        storage.ensure_tables_and_seed()
+        self.assertEqual(self.password_hash(), original)
+
+    def test_invalid_password_is_rejected_before_admin_is_created(self):
+        for password in ["", "short", "x" * 73, "\u00e9" * 37]:
+            with self.subTest(password_length=len(password)):
+                os.environ["INITIAL_ADMIN_PASSWORD"] = password
+                with self.assertRaisesRegex(ValueError, "16-72 UTF-8 bytes"):
+                    storage.ensure_tables_and_seed()
+                with self.assertRaises(ResourceNotFoundError):
+                    self.service.get_table_client(storage.TABLE_USERS).get_entity("user", "admin")
 
 
 class OrderTests(StoreFixture, unittest.TestCase):
@@ -245,6 +280,32 @@ class WebTests(StoreFixture, unittest.TestCase):
         schema = self.client.get("/openapi.json").json()
         self.assertEqual(schema["info"]["title"], "Arepa Lab")
         self.assertIn("/arepas", schema["paths"])
+
+    def test_static_assets_use_same_origin_paths_behind_https_proxy(self):
+        self.login()
+        for path in ["/dashboard", "/admin/login", "/admin/orders", "/admin/flavors"]:
+            with self.subTest(path=path):
+                response = self.client.get(path, headers={"X-Forwarded-Proto": "https"})
+                self.assertEqual(response.status_code, 200)
+                assets = [
+                    url for url in re.findall(r'(?:href|src)="([^"]+)"', response.text)
+                    if "/static/" in url
+                ]
+                self.assertTrue(assets)
+                self.assertIn("/static/brand.css", assets)
+                if path == "/dashboard":
+                    self.assertIn("/static/dashboard.js", assets)
+                for url in assets:
+                    self.assertTrue(url.startswith("/static/"), url)
+                    self.assertEqual(self.client.get(url).status_code, 200)
+
+    def test_static_asset_paths_preserve_proxy_mount_prefix(self):
+        with TestClient(app, root_path="/workshop") as client:
+            response = client.get("/workshop/dashboard")
+            self.assertEqual(response.status_code, 200)
+            for asset in ["brand.css", "dashboard.js", "arepa-lab.svg"]:
+                self.assertIn(f'"/workshop/static/{asset}"', response.text)
+                self.assertEqual(client.get(f"/workshop/static/{asset}").status_code, 200)
 
     def test_rest_registration_and_test_order(self):
         registered = self.client.post("/customers", json={

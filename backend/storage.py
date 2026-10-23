@@ -48,7 +48,10 @@ def ensure_tables_and_seed() -> None:
         try:
             users.get_entity("user", "admin")
         except ResourceNotFoundError:
-            pw_hash = bcrypt.hashpw(b"admin", bcrypt.gensalt()).decode()
+            password = os.environ.get("INITIAL_ADMIN_PASSWORD", "admin").encode("utf-8")
+            if "INITIAL_ADMIN_PASSWORD" in os.environ and not 16 <= len(password) <= 72:
+                raise ValueError("INITIAL_ADMIN_PASSWORD must contain 16-72 UTF-8 bytes.")
+            pw_hash = bcrypt.hashpw(password, bcrypt.gensalt()).decode()
             users.create_entity(
                 {"PartitionKey": "user", "RowKey": "admin", "password_hash": pw_hash}
             )

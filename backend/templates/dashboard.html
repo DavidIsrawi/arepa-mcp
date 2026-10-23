@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Arepa Lab — Live orders · SHPE 2026</title>
     {% include "brand_head.html" %}
-    <script src="{{ url_for('static', path='dashboard.js') }}" defer></script>
+    <script src="{{ url_for('static', path='dashboard.js').path }}" defer></script>
 </head>
 <body class="order-board">
     {% set event = workshop() %}
@@ -13,7 +13,7 @@
          cream tickets. Preserve three live lanes and keep the order voucher prominent. -->
     <header class="board-header wood">
         <div class="brand-lockup">
-            <img class="brand-logo" src="{{ url_for('static', path='arepa-lab.svg') }}"
+            <img class="brand-logo" src="{{ url_for('static', path='arepa-lab.svg').path }}"
                 alt="Grilled arepa filled with shredded beef and cheese" width="158" height="119" />
             <div>
                 <h1 class="brand-name">{{ event.store_name }}</h1>
