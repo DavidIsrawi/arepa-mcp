@@ -4,8 +4,9 @@ import re
 from typing import Literal
 
 from fastmcp import FastMCP
+from pydantic import ValidationError
 
-from backend import rate_limit, storage, voucher
+from backend import ordering, storage, voucher
 from backend.branding import EVENT_NAME, STORE_NAME
 
 logger = logging.getLogger("mcp.tools")
@@ -212,14 +213,21 @@ def welcome_banner() -> str:
     """Return the coloured AREPA LAB banner with embedded ANSI escapes."""
     return _WELCOME_BANNER
 
-# Allow accented characters and common name punctuation so international
-# names like "Renée" or "O'Brien" are accepted.
-_NAME_RE = re.compile(r"^[\w \-'’.]{1,50}$", re.UNICODE)
-_CITY_RE = re.compile(r"^[\w \-'’,.]{1,80}$", re.UNICODE)
 _CID_RE = re.compile(r"^[2-9A-HJKMNP-Z]{8}$")
 
 
-@mcp.tool()
+def _validation_failure(exc: ValidationError) -> dict:
+    error = exc.errors()[0]
+    field = ".".join(str(part) for part in error["loc"])
+    return {"success": False, "message": f"{field}: {error['msg']}"}
+
+
+@mcp.tool(annotations={
+    "readOnlyHint": False,
+    "destructiveHint": False,
+    "idempotentHint": False,
+    "openWorldHint": False,
+})
 @_log_call
 def register_customer(first_name: str, last_name: str, city: str) -> dict:
     """
@@ -243,45 +251,31 @@ def register_customer(first_name: str, last_name: str, city: str) -> dict:
         city:       The user's city (1–80 chars; letters, spaces,
                     hyphens, apostrophes, periods or commas).
     """
-    first_name = (first_name or "").strip()
-    last_name = (last_name or "").strip()
-    city = (city or "").strip()
-
-    if not _NAME_RE.match(first_name):
-        return {
-            "success": False,
-            "message": "first_name must be 1–50 chars: letters, spaces, hyphens, apostrophes or periods.",
-        }
-    if not _NAME_RE.match(last_name):
-        return {
-            "success": False,
-            "message": "last_name must be 1–50 chars: letters, spaces, hyphens, apostrophes or periods.",
-        }
-    if not _CITY_RE.match(city):
-        return {
-            "success": False,
-            "message": "city must be 1–80 chars: letters, spaces, hyphens, apostrophes, periods or commas.",
-        }
-
-    customer_id = storage.create_customer(first_name, last_name, city)
-    display_name = f"{first_name} {last_name}"
+    try:
+        request = ordering.RegisterRequest(
+            first_name=first_name, last_name=last_name, city=city,
+        )
+    except ValidationError as exc:
+        return _validation_failure(exc)
+    customer = ordering.register_customer(request)
     return {
         "success": True,
-        "customer_id": customer_id,
-        "display_name": display_name,
-        "first_name": first_name,
-        "last_name": last_name,
-        "city": city,
+        **customer,
         "message": (
-            f"Welcome, {display_name} from {city}! Your customer ID is "
-            f"{customer_id} — please WRITE IT DOWN, you will need it for any "
+            f"Welcome, {customer['display_name']} from {customer['city']}! Your customer ID is "
+            f"{customer['customer_id']} — please WRITE IT DOWN, you will need it for any "
             f"future orders. Do NOT call register_customer again in this "
             f"conversation."
         ),
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations={
+    "readOnlyHint": True,
+    "destructiveHint": False,
+    "idempotentHint": True,
+    "openWorldHint": False,
+})
 @_log_call
 def list_arepas() -> list[dict]:
     """
@@ -301,26 +295,15 @@ def list_arepas() -> list[dict]:
     pick by digit (see SHORTCUT OPTIONS in the system prompt). Never show
     the slug 'id' or the raw stock count.
     """
-    out = []
-    for f in storage.list_flavors():
-        stock = int(f.get("stock", 0))
-        if stock <= 0:
-            continue
-        status, label = storage.stock_label(stock)
-        out.append(
-            {
-                "id": f["RowKey"],
-                "name": f["name"],
-                "description": f.get("description", ""),
-                "price": f.get("price", 0.0),
-                "stock_status": status,
-                "stock_label": label,
-            }
-        )
-    return out
+    return ordering.list_arepas()
 
 
-@mcp.tool()
+@mcp.tool(annotations={
+    "readOnlyHint": False,
+    "destructiveHint": True,
+    "idempotentHint": False,
+    "openWorldHint": False,
+})
 @_log_call
 def order_arepa(
     flavor_id: str,
@@ -354,114 +337,46 @@ def order_arepa(
         voucher_code: The current 6-character code shown on the dashboard
                       screen at the front of the room.
     """
-    customer_id = (customer_id or "").strip().upper()
-    if not _CID_RE.match(customer_id):
-        return {
-            "success": False,
-            "message": "Invalid customer_id format. Call register_customer first.",
-        }
-
-    customer = storage.get_customer(customer_id)
-    if not customer:
-        return {
-            "success": False,
-            "message": "Unknown customer_id. Call register_customer first.",
-        }
-
-    if kind not in ("test", "real"):
-        return {"success": False, "message": "kind must be 'test' or 'real'."}
-
-    # Rate-limit voucher attempts per customer
-    if rate_limit.is_locked_out(customer_id):
-        return {
-            "success": False,
-            "message": "Too many wrong voucher attempts. Please wait about a minute and try again.",
-        }
-
-    if not voucher.is_valid_voucher(voucher_code):
-        rate_limit.record_failure(customer_id)
-        return {
-            "success": False,
-            "message": (
-                "Voucher code is wrong or expired. Please read the current "
-                "6-character code from the dashboard screen and try again."
-            ),
-        }
-
-    # Voucher was valid — reset the failure counter regardless of what
-    # happens with the rest of the order checks below.
-    rate_limit.clear(customer_id)
-
-    # Lifetime cap: real orders only
-    if kind == "real" and int(customer.get("real_orders_count", 0)) >= 1:
-        return {
-            "success": False,
-            "message": "You have already had your one real arepa at this workshop. Hope it was tasty!",
-        }
-
-    # One active order per kind
-    if storage.get_active_order_for_customer(customer_id, kind):
-        return {
-            "success": False,
-            "message": f"You already have an active {kind} order. Please pick it up first.",
-        }
-
-    flavor = storage.get_flavor(flavor_id)
-    if not flavor:
-        available = [f["RowKey"] for f in storage.list_flavors()]
-        return {
-            "success": False,
-            "message": f"Flavour '{flavor_id}' not found. Available: {available}",
-        }
-
-    # Create the order first, then decrement stock. If stock decrement
-    # fails (sold out under the race), roll back the order so we don't
-    # leave a phantom pending row. For test orders we never touch stock.
-    order_id = storage.create_order(
-        flavor_id, customer_id, customer["display_name"], kind
-    )
-    if kind == "real":
-        if int(flavor.get("stock", 0)) <= 0 or not storage.decrement_stock(flavor_id):
-            # Roll back the just-created order.
-            try:
-                storage.update_order_status(order_id, "cancelled")
-            except Exception:
-                pass
-            return {
-                "success": False,
-                "message": f"Sorry, {flavor['name']} just sold out!",
-            }
-        storage.increment_real_orders(customer_id)
-    else:
-        # Test orders auto-collect so they don't sit in the prep queue.
-        # Note: list_arepas already hides flavours with stock <= 0, so
-        # test orders effectively can't be placed against a sold-out
-        # flavour either — this is intentional for dashboard consistency.
-        storage.update_order_status(order_id, "collected")
+    try:
+        request = ordering.OrderRequest(
+            flavor_id=flavor_id, customer_id=customer_id, kind=kind,
+            voucher_code=voucher_code,
+        )
+    except ValidationError as exc:
+        return _validation_failure(exc)
+    try:
+        order = ordering.place_order(request)
+    except ordering.OrderError as exc:
+        return {"success": False, "message": exc.message}
 
     if kind == "real":
         message = (
-            f"REAL order placed for {flavor['name']}. Watch the big screen at "
+            f"REAL order placed for {order['flavor']}. Watch the big screen at "
             f"the front of the room — when your order moves to READY, hand in "
             f"your voucher code and come to the front to pick up your arepa."
         )
     else:
         message = (
-            f"TEST order recorded for {flavor['name']}. No actual arepa will "
+            f"TEST order recorded for {order['flavor']}. No actual arepa will "
             f"be made — check the big screen at the front to see your test "
             f"order appear in the test feed."
         )
 
     return {
         "success": True,
-        "order_id": order_id,
+        "order_id": order["order_id"],
         "kind": kind,
-        "flavor": flavor["name"],
+        "flavor": order["flavor"],
         "message": message,
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations={
+    "readOnlyHint": True,
+    "destructiveHint": False,
+    "idempotentHint": True,
+    "openWorldHint": False,
+})
 @_log_call
 def check_order_status(customer_id: str) -> dict:
     """
@@ -505,7 +420,12 @@ def check_order_status(customer_id: str) -> dict:
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations={
+    "readOnlyHint": False,
+    "destructiveHint": True,
+    "idempotentHint": False,
+    "openWorldHint": False,
+})
 @_log_call
 def cancel_order(customer_id: str, kind: Literal["test", "real"]) -> dict:
     """
@@ -570,7 +490,12 @@ def cancel_order(customer_id: str, kind: Literal["test", "real"]) -> dict:
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations={
+    "readOnlyHint": True,
+    "destructiveHint": False,
+    "idempotentHint": True,
+    "openWorldHint": False,
+})
 @_log_call
 def voucher_status() -> dict:
     """
