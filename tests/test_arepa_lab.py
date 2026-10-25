@@ -7,7 +7,7 @@ from unittest.mock import patch
 import xml.etree.ElementTree as ET
 
 import bcrypt
-from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
+from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError, ServiceRequestError
 from azure.data.tables import UpdateMode
 from fastapi.testclient import TestClient
 from fastmcp import Client
@@ -235,6 +235,28 @@ class OrderTests(StoreFixture, unittest.TestCase):
 
 
 class ProtocolTests(StoreFixture, unittest.IsolatedAsyncioTestCase):
+    async def test_tool_annotations_describe_effects_and_retry_safety(self):
+        expected = {
+            "register_customer": (False, False, False),
+            "list_arepas": (True, False, True),
+            "order_arepa": (False, True, False),
+            "check_order_status": (True, False, True),
+            "cancel_order": (False, True, False),
+            "voucher_status": (True, False, True),
+        }
+        async with Client(mcp_server.mcp) as client:
+            tools = await client.list_tools()
+        self.assertEqual({tool.name for tool in tools}, set(expected))
+        for tool in tools:
+            with self.subTest(tool=tool.name):
+                self.assertIsNotNone(tool.annotations)
+                self.assertEqual((
+                    tool.annotations.readOnlyHint,
+                    tool.annotations.destructiveHint,
+                    tool.annotations.idempotentHint,
+                ), expected[tool.name])
+                self.assertIs(tool.annotations.openWorldHint, False)
+
     async def test_discovery_prompts_and_real_tool_calls(self):
         async with Client(mcp_server.mcp) as client:
             tools = await client.list_tools()
@@ -319,6 +341,245 @@ class WebTests(StoreFixture, unittest.TestCase):
         self.assertEqual(result.status_code, 201)
         self.assertEqual(result.json()["status"], "collected")
         self.assertEqual(storage.get_flavor("lab-special")["stock"], 12)
+
+    def test_registration_validation_and_normalization_match_mcp(self):
+        fields = {"first_name": " María ", "last_name": " O'Brien ", "city": " Bogotá "}
+        mcp_result = mcp_server.register_customer(**fields)
+        response = self.client.post("/customers", json=fields)
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(mcp_result["success"])
+        expected = {
+            "first_name": "María", "last_name": "O'Brien", "city": "Bogotá",
+            "display_name": "María O'Brien",
+        }
+        for result in [mcp_result, response.json()]:
+            self.assertEqual({key: result[key] for key in expected}, expected)
+            customer = storage.get_customer(result["customer_id"])
+            self.assertEqual({key: customer[key] for key in expected}, expected)
+
+        original_count = len(storage.list_customers())
+        for invalid in [
+            {"first_name": "  "}, {"last_name": "x" * 51},
+            {"city": "x" * 81}, {"first_name": "<script>"},
+        ]:
+            with self.subTest(invalid=invalid):
+                args = {**fields, **invalid}
+                self.assertFalse(mcp_server.register_customer(**args)["success"])
+                self.assertEqual(self.client.post("/customers", json=args).status_code, 422)
+        self.assertEqual(len(storage.list_customers()), original_count)
+
+    def test_rest_order_normalizes_customer_id_like_mcp(self):
+        response = self.client.post("/orders", json={
+            "customer_id": f" {self.customer_id.lower()} ",
+            "flavor_id": "lab-special", "kind": "real", "voucher_code": self.code,
+        })
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["customer_id"], self.customer_id)
+        self.assertEqual(storage.get_flavor("lab-special")["stock"], 11)
+        self.assertEqual(storage.get_customer(self.customer_id)["real_orders_count"], 1)
+
+    def test_menu_projection_matches_mcp_without_changing_rest_visibility(self):
+        storage.update_flavor("lab-special", image_url="https://example.com/arepa.png")
+        rest_menu = self.client.get("/arepas").json()
+        mcp_menu = mcp_server.list_arepas()
+        self.assertEqual(len(rest_menu), 2)
+        self.assertEqual(len(mcp_menu), 1)
+        rest_item = next(item for item in rest_menu if item["id"] == mcp_menu[0]["id"])
+        self.assertEqual(rest_item.pop("image_url"), "https://example.com/arepa.png")
+        self.assertEqual(rest_item, mcp_menu[0])
+
+    def test_order_validation_matches_mcp_without_side_effects(self):
+        args = {"customer_id": self.customer_id, "flavor_id": "lab-special",
+                "kind": "real", "voucher_code": self.code}
+        for invalid in [
+            {"customer_id": "invalid"}, {"kind": "invalid"},
+            {"flavor_id": ""}, {"flavor_id": "x" * 101},
+            {"voucher_code": ""}, {"voucher_code": "x" * 13},
+        ]:
+            with self.subTest(invalid=invalid):
+                request = {**args, **invalid}
+                self.assertFalse(mcp_server.order_arepa(**request)["success"])
+                self.assertEqual(self.client.post("/orders", json=request).status_code, 422)
+        self.assertEqual(storage.list_orders(), [])
+        self.assertEqual(storage.get_flavor("lab-special")["stock"], 12)
+
+    def test_order_business_errors_match_mcp(self):
+        args = {"customer_id": self.customer_id, "flavor_id": "lab-special",
+                "kind": "real", "voucher_code": self.code}
+        for invalid, status in [
+            ({"customer_id": "ZZZZZZZZ"}, 404),
+            ({"voucher_code": "WRONG"}, 403),
+            ({"flavor_id": "missing"}, 404),
+            ({"flavor_id": "queso"}, 409),
+        ]:
+            with self.subTest(invalid=invalid):
+                request = {**args, **invalid}
+                mcp_result = mcp_server.order_arepa(**request)
+                response = self.client.post("/orders", json=request)
+                self.assertFalse(mcp_result["success"])
+                self.assertEqual(response.status_code, status)
+                self.assertEqual(response.json()["detail"], mcp_result["message"])
+        self.assertIsNone(storage.get_active_order_for_customer(self.customer_id, "real"))
+        self.assertEqual(storage.get_customer(self.customer_id)["real_orders_count"], 0)
+        self.assertEqual(storage.get_flavor("lab-special")["stock"], 12)
+
+    def test_lifetime_and_active_order_errors_match_mcp(self):
+        self.order()
+        args = {"customer_id": self.customer_id, "flavor_id": "lab-special",
+                "kind": "real", "voucher_code": self.code}
+        for count in [1, 0]:
+            with self.subTest(real_orders_count=count):
+                storage_table = self.service.get_table_client(storage.TABLE_CUSTOMERS)
+                storage_table.rows[("customer", self.customer_id)]["real_orders_count"] = count
+                mcp_result = mcp_server.order_arepa(**args)
+                response = self.client.post("/orders", json=args)
+                self.assertFalse(mcp_result["success"])
+                self.assertEqual(response.status_code, 409)
+                self.assertEqual(response.json()["detail"], mcp_result["message"])
+        self.assertEqual(len(storage.list_orders()), 1)
+        self.assertEqual(storage.get_flavor("lab-special")["stock"], 11)
+
+    def test_voucher_throttling_is_shared_between_transports(self):
+        args = {"customer_id": self.customer_id, "flavor_id": "lab-special",
+                "kind": "test", "voucher_code": "WRONG"}
+        for _ in range(5):
+            self.assertFalse(mcp_server.order_arepa(**args)["success"])
+            self.assertEqual(self.client.post("/orders", json=args).status_code, 403)
+        args["voucher_code"] = self.code
+        mcp_result = mcp_server.order_arepa(**args)
+        response = self.client.post("/orders", json=args)
+        self.assertFalse(mcp_result["success"])
+        self.assertEqual(response.status_code, 429)
+        self.assertEqual(response.json()["detail"], mcp_result["message"])
+        self.assertEqual(storage.list_orders(), [])
+
+    def test_valid_voucher_resets_failures_even_when_order_is_rejected(self):
+        for transport in ["mcp", "rest"]:
+            with self.subTest(transport=transport):
+                rate_limit.record_failure(self.customer_id)
+                args = {"customer_id": self.customer_id, "flavor_id": "missing",
+                        "kind": "real", "voucher_code": self.code}
+                if transport == "mcp":
+                    self.assertFalse(mcp_server.order_arepa(**args)["success"])
+                else:
+                    self.assertEqual(self.client.post("/orders", json=args).status_code, 404)
+                self.assertNotIn(self.customer_id, rate_limit._attempts)
+
+    def test_stock_decrement_failure_cancels_order_in_both_transports(self):
+        args = {"customer_id": self.customer_id, "flavor_id": "lab-special",
+                "kind": "real", "voucher_code": self.code}
+        with patch.object(storage, "decrement_stock", return_value=False):
+            mcp_result = mcp_server.order_arepa(**args)
+            response = self.client.post("/orders", json=args)
+        self.assertFalse(mcp_result["success"])
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["detail"], mcp_result["message"])
+        self.assertEqual([row["status"] for row in storage.list_orders()],
+                         ["cancelled", "cancelled"])
+        self.assertEqual(storage.get_flavor("lab-special")["stock"], 12)
+        self.assertEqual(storage.get_customer(self.customer_id)["real_orders_count"], 0)
+
+    def test_storage_errors_are_not_reported_as_business_rejections(self):
+        args = {"customer_id": self.customer_id, "flavor_id": "lab-special",
+                "kind": "real", "voucher_code": self.code}
+        for transport in ["mcp", "rest"]:
+            with self.subTest(transport=transport), patch.object(
+                storage, "create_order", side_effect=ServiceRequestError("Storage unavailable"),
+            ):
+                with self.assertRaises(ServiceRequestError):
+                    if transport == "mcp":
+                        mcp_server.order_arepa(**args)
+                    else:
+                        self.client.post("/orders", json=args)
+        self.assertEqual(storage.list_orders(), [])
+        self.assertEqual(storage.get_flavor("lab-special")["stock"], 12)
+
+    def test_stock_write_exceptions_cancel_provisional_orders_without_refunding(self):
+        decrement_stock = storage.decrement_stock
+        for transport in ["mcp", "rest"]:
+            for committed in [False, True]:
+                with self.subTest(transport=transport, committed=committed):
+                    customer_id = storage.create_customer("Test", "Customer", "Indianapolis")
+                    args = {"customer_id": customer_id, "flavor_id": "lab-special",
+                            "kind": "real", "voucher_code": self.code}
+                    stock_before = storage.get_flavor("lab-special")["stock"]
+                    error = ServiceRequestError("Stock response unavailable")
+
+                    def fail_stock_write(flavor_id):
+                        if committed:
+                            decrement_stock(flavor_id)
+                        raise error
+
+                    with (
+                        patch.object(storage, "decrement_stock", side_effect=fail_stock_write),
+                        patch.object(storage, "increment_stock") as refund,
+                        patch.object(storage, "increment_real_orders") as allowance,
+                        self.assertLogs("backend.ordering", level="ERROR") as logs,
+                        self.assertRaises(ServiceRequestError) as raised,
+                    ):
+                        if transport == "mcp":
+                            mcp_server.order_arepa(**args)
+                        else:
+                            self.client.post("/orders", json=args)
+                    self.assertIs(raised.exception, error)
+                    refund.assert_not_called()
+                    allowance.assert_not_called()
+                    self.assertIn("staff must reconcile inventory", logs.output[0])
+                    self.assertIsNone(storage.get_active_order_for_customer(customer_id, "real"))
+                    orders = [row for row in storage.list_orders()
+                              if row["customer_id"] == customer_id]
+                    self.assertEqual([row["status"] for row in orders], ["cancelled"])
+                    self.assertEqual(storage.get_flavor("lab-special")["stock"],
+                                     stock_before - int(committed))
+                    self.assertEqual(storage.get_customer(customer_id)["real_orders_count"], 0)
+                    if not committed:
+                        if transport == "mcp":
+                            self.assertTrue(mcp_server.order_arepa(**args)["success"])
+                        else:
+                            self.assertEqual(self.client.post("/orders", json=args).status_code, 201)
+
+    def test_stock_write_and_cleanup_errors_are_both_preserved(self):
+        for transport in ["mcp", "rest"]:
+            with self.subTest(transport=transport):
+                customer_id = storage.create_customer("Test", "Customer", "Indianapolis")
+                args = {"customer_id": customer_id, "flavor_id": "lab-special",
+                        "kind": "real", "voucher_code": self.code}
+                stock_error = ServiceRequestError("Stock response unavailable")
+                cleanup_error = ServiceRequestError("Cleanup unavailable")
+                with (
+                    patch.object(storage, "decrement_stock", side_effect=stock_error),
+                    patch.object(storage, "update_order_status", side_effect=cleanup_error),
+                    self.assertLogs("backend.ordering", level="ERROR") as logs,
+                    self.assertRaises(ServiceRequestError) as raised,
+                ):
+                    if transport == "mcp":
+                        mcp_server.order_arepa(**args)
+                    else:
+                        self.client.post("/orders", json=args)
+                self.assertIs(raised.exception, cleanup_error)
+                self.assertIs(cleanup_error.__context__, stock_error)
+                self.assertEqual(len(logs.output), 2)
+                self.assertIn("uncertain outcome", logs.output[0])
+                self.assertIn("Could not cancel an order", logs.output[1])
+
+    def test_failed_sold_out_cleanup_is_logged_and_propagated(self):
+        args = {"customer_id": self.customer_id, "flavor_id": "lab-special",
+                "kind": "real", "voucher_code": self.code}
+        for transport in ["mcp", "rest"]:
+            args["customer_id"] = storage.create_customer("Test", "Customer", "Indianapolis")
+            with (
+                self.subTest(transport=transport),
+                patch.object(storage, "decrement_stock", return_value=False),
+                patch.object(storage, "update_order_status",
+                             side_effect=ServiceRequestError("Cleanup unavailable")),
+                self.assertLogs("backend.ordering", level="ERROR") as logs,
+                self.assertRaises(ServiceRequestError),
+            ):
+                if transport == "mcp":
+                    mcp_server.order_arepa(**args)
+                else:
+                    self.client.post("/orders", json=args)
+            self.assertIn("Could not cancel an order", logs.output[0])
 
     def test_rest_validation_voucher_and_lifetime_cap(self):
         args = {"customer_id": self.customer_id, "flavor_id": "lab-special",

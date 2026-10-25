@@ -48,6 +48,7 @@ arepa-mcp/
 │   ├── storage.py           # Azure Table Storage client + all CRUD helpers
 │   ├── auth.py              # require_admin FastAPI dependency
 │   ├── mcp_server.py        # fastmcp tools: list_arepas, order_arepa, check_order_status
+│   ├── ordering.py          # Shared MCP/REST validation, registration, menu and ordering
 │   ├── branding.py          # SHPE event identity and workshop access configuration
 │   ├── seed_menu.py         # Opt-in demo menu; never overwrites existing items
 │   ├── static/             # Original arepa logo, wood pattern, shared CSS, dashboard JS
@@ -344,6 +345,34 @@ Agents connect to `http://<host>:8000/mcp/` using the **streamable HTTP** transp
 
 Six tools are available:
 
+MCP and REST use the same validation and business logic in `backend/ordering.py`
+for registration, menu projection and order placement. Both trim registration
+fields, accept accented names and common name punctuation, and normalize customer
+IDs to uppercase before validation. A valid voucher clears earlier failed attempts,
+even if the order is subsequently rejected for another reason. REST retains its
+HTTP status codes and response shapes; MCP retains its `success`/`message` responses.
+The REST menu includes sold-out items and image URLs; the MCP menu omits them.
+
+If a stock write raises, the service attempts to cancel the provisional order
+and propagates the storage error. It does not refund stock: the write may have
+committed before its response failed. Staff must reconcile inventory before a
+retry. Cleanup failures are also logged and propagated.
+
+Tool discovery includes explicit MCP behavior annotations:
+
+| Tools | Read-only | Destructive | Idempotent |
+|---|---|---|---|
+| `list_arepas`, `check_order_status`, `voucher_status` | Yes | No | Yes |
+| `register_customer` | No | No | No |
+| `order_arepa`, `cancel_order` | No | Yes | No |
+
+All tools set `openWorldHint: false` because they operate within this workshop
+store. Ordering can consume stock and cancellation changes an existing order.
+Neither mutation is advertised as safe to replay: test orders can be duplicated,
+and cancellation targets the customer's currently active order rather than a
+fixed order ID. These annotations describe behavior; they do not enforce
+permissions or add retry/concurrency guarantees.
+
 ### `register_customer(first_name, last_name, city)`
 Registers a customer and returns an 8-character `customer_id`. Agents retain
 this ID for subsequent order and status calls.
@@ -395,6 +424,26 @@ customer's real-order allowance.
 ### `voucher_status()`
 Returns timing information for the rotating workshop voucher without revealing
 the voucher code.
+
+### Client-to-MCP regression gate
+
+The paired `code-with-foundry-shpe-workshop` repository contains the v0 E2E
+runner. Run it after changes to either the client or the MCP contract. For
+sibling checkouts, from this server repository:
+
+```bash
+../code-with-foundry-shpe-workshop/.venv/bin/python \
+  ../code-with-foundry-shpe-workshop/tests/e2e/run.py --suite all \
+  --server-repo . --server-python .venv/bin/python
+```
+
+Adjust the interpreter paths to your actual client/server environments. The
+runner starts isolated local services and covers all six tools through both a
+deterministic MCP client and a real model-backed workshop conversation. The
+agent suite uses the client's configured Foundry deployment and incurs model
+usage; `--suite contract` needs no model key. See `tests/e2e/README.md` in the
+client checkout for setup, coverage and failure artifacts. No deployed workshop
+data is used.
 
 ---
 
