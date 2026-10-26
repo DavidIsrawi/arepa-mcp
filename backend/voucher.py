@@ -43,10 +43,29 @@ def seconds_until_rotation() -> int:
     return WINDOW_SECONDS - (now % WINDOW_SECONDS)
 
 
+def normalize(code: str) -> str:
+    return (code or "").strip().upper().replace("-", "").replace(" ", "")
+
+
+def invalid_characters(code: str) -> list[str]:
+    """Characters in ``code`` that can never appear in a voucher, in order of appearance."""
+    seen: list[str] = []
+    for char in normalize(code):
+        if char not in _ALPHABET and char not in seen:
+            seen.append(char)
+    return seen
+
+
+def is_well_formed(code: str) -> bool:
+    """True if ``code`` could be a voucher at all (length and alphabet)."""
+    code = normalize(code)
+    return len(code) == _CODE_LENGTH and not invalid_characters(code)
+
+
 def is_valid_voucher(code: str) -> bool:
     if not code:
         return False
-    code = code.strip().upper().replace("-", "").replace(" ", "")
+    code = normalize(code)
     if len(code) != _CODE_LENGTH:
         return False
     w = int(time.time()) // WINDOW_SECONDS

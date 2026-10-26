@@ -4,9 +4,10 @@ The canonical instructions are the MCP prompt **`agent_instructions`** in
 `backend/mcp_server.py`. Fetch that prompt at startup, as the example in
 `test-agents/agent.py` does, instead of maintaining a second system prompt.
 
-The six tools are:
+The seven tools are:
 
 - `register_customer(first_name, last_name, city)`
+- `get_customer(customer_id)`
 - `list_arepas()`
 - `order_arepa(flavor_id, customer_id, kind, voucher_code)`
 - `check_order_status(customer_id)`

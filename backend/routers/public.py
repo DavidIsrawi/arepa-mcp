@@ -46,7 +46,12 @@ def place_order(order: OrderRequest):
     try:
         return ordering.place_order(order)
     except ordering.OrderError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+        headers = None
+        if "retry_after_s" in exc.details:
+            headers = {"Retry-After": str(exc.details["retry_after_s"])}
+        raise HTTPException(
+            status_code=exc.status_code, detail=exc.message, headers=headers,
+        ) from exc
 
 
 @router.get("/orders", dependencies=[Depends(require_admin)])
@@ -96,19 +101,6 @@ async def dashboard_data():
     return _dashboard_data()
 
 
-def _short_name(full: str) -> str:
-    """'Henk Boelman' -> 'Henk B.'  ·  long firsts truncated to 8 chars + '.'"""
-    parts = (full or "").strip().split()
-    if not parts:
-        return ""
-    first = parts[0]
-    if len(first) > 8:
-        first = first[:8] + "."
-    if len(parts) == 1:
-        return first
-    return f"{first} {parts[-1][0].upper()}."
-
-
 def _dashboard_data() -> dict:
     # Coalesce concurrent viewers behind a tiny TTL cache so the table
     # store doesn't get hammered when multiple browsers poll in lockstep.
@@ -122,7 +114,7 @@ def _dashboard_data() -> dict:
     def _annotate(o):
         return {
             "id": o["RowKey"],
-            "customer_name": _short_name(o.get("customer_name", "")),
+            "customer_name": ordering.board_name(o.get("customer_name", "")),
             "flavor_name": flavors.get(o["flavor_id"], {}).get("name", o["flavor_id"]),
             "kind": o.get("kind", "real"),
             "status": o.get("status", ""),

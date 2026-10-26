@@ -213,7 +213,7 @@ npx @modelcontextprotocol/inspector --server-url http://127.0.0.1:8000/mcp/ --tr
 ```
 
 Open the Inspector UI URL printed in the terminal and connect its configured
-HTTP server. The `/mcp/` endpoint is not a web page. Inspect **Tools** for the six
+HTTP server. The `/mcp/` endpoint is not a web page. Inspect **Tools** for the seven
 operations and **Prompts** for `agent_instructions` and `welcome_banner`.
 
 ### Run the example agent
@@ -343,7 +343,7 @@ Agents connect to `http://<host>:8000/mcp/` using the **streamable HTTP** transp
 > expose this MCP endpoint as a general-purpose production service without an
 > authentication layer, network controls, and abuse monitoring.
 
-Six tools are available:
+Seven tools are available:
 
 MCP and REST use the same validation and business logic in `backend/ordering.py`
 for registration, menu projection and order placement. Both trim registration
@@ -351,6 +351,18 @@ fields, accept accented names and common name punctuation, and normalize custome
 IDs to uppercase before validation. A valid voucher clears earlier failed attempts,
 even if the order is subsequently rejected for another reason. REST retains its
 HTTP status codes and response shapes; MCP retains its `success`/`message` responses.
+
+MCP failures also carry a stable `error_code` so agents do not have to parse
+prose: `invalid_input` (with a `fields` map of plain-language problems for every
+bad argument), `unknown_customer`, `malformed_voucher`, `invalid_voucher`,
+`voucher_locked`, `real_limit_reached`, `active_order_exists`, `flavor_not_found`,
+`sold_out`, `no_active_order` and `order_not_cancellable`. Some results add an
+`agent_note` with guidance meant for the agent, kept out of the user-facing
+`message`. A voucher with the wrong length or with characters that never
+appear in codes (0, 1, I, L, O) returns `malformed_voucher` and does not count
+toward the wrong-voucher lockout. A wrong but well-formed code returns
+`invalid_voucher` with `seconds_until_rotation`; a lockout returns `voucher_locked`
+with `retry_after_s` (REST sends the same value as a `Retry-After` header).
 The REST menu includes sold-out items and image URLs; the MCP menu omits them.
 
 If a stock write raises, the service attempts to cancel the provisional order
@@ -362,7 +374,7 @@ Tool discovery includes explicit MCP behavior annotations:
 
 | Tools | Read-only | Destructive | Idempotent |
 |---|---|---|---|
-| `list_arepas`, `check_order_status`, `voucher_status` | Yes | No | Yes |
+| `get_customer`, `list_arepas`, `check_order_status`, `voucher_status` | Yes | No | Yes |
 | `register_customer` | No | No | No |
 | `order_arepa`, `cancel_order` | No | Yes | No |
 
@@ -374,8 +386,14 @@ fixed order ID. These annotations describe behavior; they do not enforce
 permissions or add retry/concurrency guarantees.
 
 ### `register_customer(first_name, last_name, city)`
-Registers a customer and returns an 8-character `customer_id`. Agents retain
-this ID for subsequent order and status calls.
+Registers a customer and returns an 8-character `customer_id` and the
+`board_name` shown on the dashboard. Agents retain this ID for subsequent
+order and status calls.
+
+### `get_customer(customer_id)`
+Verifies a returning customer's ID before the menu or voucher step. Returns
+their `first_name`, dashboard `board_name`, whether they `can_order_real`, and
+any `active_real_order`. Last name and city are not returned.
 
 ### `list_arepas()`
 Returns flavours with qualitative stock labels rather than exact inventory.
@@ -403,11 +421,12 @@ voucher from the workshop dashboard is required.
   "order_id": "67e622c8-c888-4da7-a458-dc855e75cf53",
   "kind": "real",
   "flavor": "Arepa Lab Special",
-  "message": "REAL order placed for Arepa Lab Special. Watch the big screen at the front of the room — when your order moves to READY, hand in your voucher code and come to the front to pick up your arepa."
+  "board_name": "Ana P.",
+  "message": "REAL order placed for Arepa Lab Special. Watch the big screen at the front of the room for \"Ana P.\". When it moves to Ready for pickup, come to the counter and give your name to collect your arepa."
 }
 ```
 
-Returns `success: false` with a descriptive message if:
+Returns `success: false` with an `error_code` and descriptive message if:
 - The customer ID or voucher is invalid
 - The customer already has an active order of that kind
 - The customer has already received their one real arepa
@@ -438,7 +457,7 @@ sibling checkouts, from this server repository:
 ```
 
 Adjust the interpreter paths to your actual client/server environments. The
-runner starts isolated local services and covers all six tools through both a
+runner starts isolated local services and covers all seven tools through both a
 deterministic MCP client and a real model-backed workshop conversation. The
 agent suite uses the client's configured Foundry deployment and incurs model
 usage; `--suite contract` needs no model key. See `tests/e2e/README.md` in the

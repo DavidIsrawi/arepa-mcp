@@ -73,8 +73,12 @@ CONVERSATION FLOW
      for a second order.
 
    Returning user (option 2): ask for their 8-character customer ID and
-   reuse it. You don't need to verify it up-front; if it's wrong,
-   order_arepa will tell you and you can ask the user to re-check.
+   call get_customer(customer_id) right away, before the menu or voucher.
+   - found false → ask them to re-read the ID. Don't continue until it
+     checks out (or they choose to register instead).
+   - found true → greet them by first_name. If active_real_order is set,
+     tell them its status first. If can_order_real is false, only offer
+     test orders and skip the test-vs-real question.
 
 3. Order:
    - Call list_arepas. Each item has an 'id' (machine slug, e.g.
@@ -84,19 +88,20 @@ CONVERSATION FLOW
     Keep the 'id' for yourself — use it as flavor_id when calling
     order_arepa.
    - Ask which flavour they would like (by number or name).
-   - Ask them to read the current 6-character voucher code from the big
-     dashboard screen at the front of the room.
    - Ask whether this is a TEST or REAL order, with shortcuts:
         1. Test order (just practising — no real arepa)
         2. Real order (I actually want an arepa)
-   - Call order_arepa(flavor_id, customer_id, kind, voucher_code).
+   - LAST, ask them to read the current 6-character voucher code from the
+     big dashboard screen at the front of the room. Codes rotate every few
+     minutes, so call order_arepa(flavor_id, customer_id, kind,
+     voucher_code) as soon as they give it to you. If the user already
+     gave you every detail in one message, just place the order.
 
-4. After ordering:
-   - TEST: tell them to check the big screen at the front to see their test
-     order appear in the test feed.
-   - REAL: tell them to watch the big screen — when their order moves to
-     READY, they should hand in their voucher code and come to the front
-     to pick up their arepa.
+4. After ordering, relay the message returned by order_arepa. It tells
+   the user which name to look for on the big screen ("board_name", e.g.
+   "Ana P.") and, for REAL orders, to come to the counter and give their
+   name once the order is Ready for pickup. Test orders are never picked
+   up.
 
 5. Status checks: use check_order_status(customer_id) when asked. It only
    tracks REAL orders — test orders auto-complete instantly, so for those
@@ -108,21 +113,29 @@ CONVERSATION FLOW
    Cancelling a REAL order refunds stock and resets their lifetime cap so
    they can choose another flavour.
 
-7. Voucher hints: if order_arepa fails with an invalid voucher message,
-   you may call voucher_status() once to see how long the current code is
-   valid. If it's about to rotate, tell the user to wait a few seconds and
-   read the new code; otherwise just ask them to re-read the screen.
+7. Voucher hints: when order_arepa fails with error_code invalid_voucher,
+   ask the user to re-read the code on the screen carefully. A code keeps
+   working for one more window after it rotates, so they never need to
+   wait for a new one. voucher_status() reports the rotation timing
+   whenever the user asks.
 
 HANDLING TOOL ERRORS
-The tools return {{"success": false, "message": "..."}} for recoverable
-problems. Read the message, tell the user in your own friendly words, and
-ask for the missing or corrected information. Never show the raw JSON to
-the user.
-  - Unknown / invalid customer_id        → ask them to re-read it.
-  - Voucher code is wrong or expired     → ask them to re-read the screen.
-  - Too many wrong voucher attempts      → ask them to wait a minute.
-  - Flavour not found / sold out         → offer another flavour.
-  - Already had your real arepa        → congratulate, offer a test order.
+Failures return {{"success": false}} (or {{"found": false}} for lookups)
+with a "message" for the user, an "error_code" for you, and sometimes an
+"agent_note". Tell the user what the message says in your own friendly
+words and ask for the missing or corrected information. Follow
+agent_note yourself; never read it out. Never show the raw JSON to the
+user.
+  - invalid_input        → "fields" lists every bad argument; ask for all
+                           of them in one go.
+  - unknown_customer     → ask them to re-read their customer ID.
+  - malformed_voucher    → the code can't exist; mention the characters
+                           in "invalid_characters" and ask them to re-read.
+  - invalid_voucher      → wrong or expired; see step 7.
+  - voucher_locked       → ask them to wait "retry_after_s" seconds.
+  - flavor_not_found, sold_out → call list_arepas and offer another flavour.
+  - real_limit_reached   → congratulate, offer a test order.
+  - active_order_exists  → tell them where their current order is.
 
 If list_arepas returns an empty list, explain that no arepas are available
 right now. Ask the user to check with staff; do not invent a menu item or
@@ -152,8 +165,8 @@ INPUT HANDLING
 - 'kind' must be exactly the lowercase string "test" or "real" when
   calling order_arepa.
 - Voucher codes are 6 characters from the alphabet 2–9 and A–Z (no 0, 1,
-  I, L, O). If the user reads back something containing 0 or O, ask them
-  to re-check — it is almost certainly the other character.
+  I, L, O). Spaces and dashes are ignored. If the user reads back a code
+  with one of those characters, ask them to re-check it before ordering.
 - Customer IDs are 8 characters from the same alphabet, uppercase. Accept
   lowercase from the user and uppercase it before calling tools.
 
@@ -215,11 +228,68 @@ def welcome_banner() -> str:
 
 _CID_RE = re.compile(r"^[2-9A-HJKMNP-Z]{8}$")
 
+_FAILURE_NOTES = {
+    "unknown_customer": (
+        "Ask the user to re-read their customer ID. Only register a new one if "
+        "they confirm they never had one."
+    ),
+    "malformed_voucher": (
+        "Ask the user to re-read the code. This attempt did not count toward "
+        "the wrong-voucher lockout."
+    ),
+    "real_limit_reached": "Offer a test order instead.",
+    "active_order_exists": (
+        "Use check_order_status to tell the user where their current order is."
+    ),
+    "flavor_not_found": "Call list_arepas again and offer an available flavour.",
+    "sold_out": "Call list_arepas again and offer an available flavour.",
+}
 
-def _validation_failure(exc: ValidationError) -> dict:
-    error = exc.errors()[0]
-    field = ".".join(str(part) for part in error["loc"])
-    return {"success": False, "message": f"{field}: {error['msg']}"}
+
+def _validation_failure(exc: ValidationError, flag: str = "success") -> dict:
+    fields = ordering.describe_validation_error(exc)
+    return {
+        flag: False,
+        "error_code": "invalid_input",
+        "message": " ".join(fields.values()),
+        "fields": fields,
+    }
+
+
+def _order_failure(exc: ordering.OrderError) -> dict:
+    result = {"success": False, "error_code": exc.code, "message": exc.message, **exc.details}
+    if exc.code == "invalid_voucher":
+        result["agent_note"] = (
+            "Ask the user to re-read the code currently on the dashboard carefully. "
+            "There is no need to wait for a new one: a code stays valid for one "
+            "more window after it rotates."
+        )
+    elif exc.code == "voucher_locked":
+        result["agent_note"] = (
+            f"Do not retry for about {exc.details['retry_after_s']}s."
+        )
+    elif exc.code in _FAILURE_NOTES:
+        result["agent_note"] = _FAILURE_NOTES[exc.code]
+    return result
+
+
+def _normalize_customer_id(customer_id: str) -> str:
+    return (customer_id or "").strip().upper()
+
+
+def _invalid_customer_id(flag: str) -> dict:
+    message = ordering.CUSTOMER_ID_HELP
+    return {
+        flag: False,
+        "error_code": "invalid_input",
+        "message": message,
+        "fields": {"customer_id": message},
+    }
+
+
+def _flavor_name(flavor_id: str) -> str:
+    flavor = storage.get_flavor(flavor_id)
+    return flavor["name"] if flavor else flavor_id
 
 
 @mcp.tool(annotations={
@@ -236,12 +306,14 @@ def register_customer(first_name: str, last_name: str, city: str) -> dict:
     one they give you. Collect first name, last name and city from the user
     BEFORE calling this tool.
 
-    On success returns {"success": true, "customer_id": "XXXXXXXX", ...}.
-    Show the customer_id clearly and tell the user to write it down. Do not
-    call this tool again later in the same conversation.
+    On success returns {"success": true, "customer_id": "XXXXXXXX",
+    "board_name": "Ana P.", "message": ..., "agent_note": ...}. Show the
+    customer_id clearly and tell the user to write it down. Follow
+    agent_note yourself; never read it to the user.
 
-    On failure returns {"success": false, "message": "..."} — relay the
-    message and ask the user to correct the offending field.
+    On failure returns {"success": false, "error_code": "invalid_input",
+    "message": "...", "fields": {field: problem}} — relay the message and
+    ask the user to correct every listed field.
 
     Args:
         first_name: The user's first name (1–50 chars; letters, spaces,
@@ -261,12 +333,89 @@ def register_customer(first_name: str, last_name: str, city: str) -> dict:
     return {
         "success": True,
         **customer,
+        "board_name": ordering.board_name(customer["display_name"]),
         "message": (
             f"Welcome, {customer['display_name']} from {customer['city']}! Your customer ID is "
-            f"{customer['customer_id']} — please WRITE IT DOWN, you will need it for any "
-            f"future orders. Do NOT call register_customer again in this "
-            f"conversation."
+            f"{customer['customer_id']}. Please write it down; you will need it for any "
+            f"future orders."
         ),
+        "agent_note": (
+            "Registration is complete. Reuse this customer_id for every later call "
+            "and do not call register_customer again in this conversation."
+        ),
+    }
+
+
+@mcp.tool(annotations={
+    "readOnlyHint": True,
+    "destructiveHint": False,
+    "idempotentHint": True,
+    "openWorldHint": False,
+})
+@_log_call
+def get_customer(customer_id: str) -> dict:
+    """
+    Look up a RETURNING customer from the customer_id they give you. Call
+    this as soon as a returning user tells you their ID, before showing the
+    menu or asking for a voucher, so a mistyped ID is caught early.
+
+    On success returns {"found": true, "customer_id": ..., "first_name": ...,
+    "board_name": "Ana P.", "can_order_real": bool, "active_real_order":
+    null | {"status": "pending"|"ready", "flavor": ...}, "message": ...}.
+    Greet the user by first_name. If can_order_real is false, offer only
+    test orders.
+
+    On failure returns {"found": false, "error_code": "invalid_input" |
+    "unknown_customer", "message": ...} — ask the user to re-read their ID.
+
+    Args:
+        customer_id: The 8-character customer_id the user says they have.
+    """
+    customer_id = _normalize_customer_id(customer_id)
+    if not _CID_RE.match(customer_id):
+        return _invalid_customer_id("found")
+    customer = storage.get_customer(customer_id)
+    if not customer:
+        return {
+            "found": False,
+            "error_code": "unknown_customer",
+            "message": "No customer has that ID. Please re-check it.",
+            "agent_note": _FAILURE_NOTES["unknown_customer"],
+        }
+
+    display_name = customer.get("display_name", "")
+    first_name = customer.get("first_name") or (display_name.split() or [""])[0]
+    can_order_real = int(customer.get("real_orders_count", 0)) < 1
+    active = storage.get_active_order_for_customer(customer_id, "real")
+    active_real_order = None
+    if active:
+        active_real_order = {
+            "status": active["status"],
+            "flavor": _flavor_name(active["flavor_id"]),
+        }
+        progress = "ready for pickup" if active["status"] == "ready" else "being prepared"
+        message = (
+            f"Welcome back, {first_name}! Your {active_real_order['flavor']} is {progress}."
+        )
+    elif can_order_real:
+        message = (
+            f"Welcome back, {first_name}! You can place test orders and your one "
+            "real arepa order."
+        )
+    else:
+        message = (
+            f"Welcome back, {first_name}! You've already had your real arepa, but "
+            "you can still place test orders."
+        )
+
+    return {
+        "found": True,
+        "customer_id": customer_id,
+        "first_name": first_name,
+        "board_name": ordering.board_name(display_name),
+        "can_order_real": can_order_real,
+        "active_real_order": active_real_order,
+        "message": message,
     }
 
 
@@ -312,20 +461,27 @@ def order_arepa(
     voucher_code: str,
 ) -> dict:
     """
-    Place an order for one arepa. ASK THE USER for flavour, kind
-    (test or real) and the current voucher code BEFORE calling.
+    Place an order for one arepa. ASK THE USER for flavour and kind (test
+    or real) first, then ask for the current voucher code LAST and call
+    this tool right away — codes rotate every few minutes.
 
     On success returns {"success": true, "order_id": ..., "kind": ...,
-    "flavor": ..., "message": ...}.
+    "flavor": ..., "board_name": "Ana P.", "message": ...}.
 
-    On failure returns {"success": false, "message": "..."}. Common reasons:
-      - Invalid or unknown customer_id     → ask the user to re-read it.
-      - Voucher code wrong or expired      → ask them to re-read the screen.
-      - Too many wrong voucher attempts    → ask them to wait ~1 minute.
-      - Flavour not found                  → list_arepas again, suggest one.
-      - Sold out                           → suggest another flavour.
-      - Already had your one real arepa  → offer a test order instead.
-      - Active order of this kind exists   → ask them to pick it up first.
+    On failure returns {"success": false, "error_code": ..., "message":
+    "...", "agent_note": ...}. Relay the message in your own words and
+    follow agent_note (never read it out). Error codes:
+      - invalid_input        → "fields" lists each bad argument.
+      - unknown_customer     → ask the user to re-read their ID.
+      - malformed_voucher    → code can't exist; "invalid_characters" lists
+                               the offending characters. Not counted
+                               toward the lockout.
+      - invalid_voucher      → wrong or expired; "seconds_until_rotation"
+                               says when the next code appears.
+      - voucher_locked       → too many wrong codes; wait "retry_after_s".
+      - real_limit_reached   → offer a test order instead.
+      - active_order_exists  → ask them to pick up their current order.
+      - flavor_not_found / sold_out → list_arepas again, suggest one.
 
     Args:
         flavor_id:    'id' field from list_arepas (slug, NOT the name).
@@ -347,19 +503,20 @@ def order_arepa(
     try:
         order = ordering.place_order(request)
     except ordering.OrderError as exc:
-        return {"success": False, "message": exc.message}
+        return _order_failure(exc)
 
+    board_name = order["board_name"]
     if kind == "real":
         message = (
-            f"REAL order placed for {order['flavor']}. Watch the big screen at "
-            f"the front of the room — when your order moves to READY, hand in "
-            f"your voucher code and come to the front to pick up your arepa."
+            f"REAL order placed for {order['flavor']}. Watch the big screen at the "
+            f"front of the room for \"{board_name}\". When it moves to Ready for "
+            f"pickup, come to the counter and give your name to collect your arepa."
         )
     else:
         message = (
-            f"TEST order recorded for {order['flavor']}. No actual arepa will "
-            f"be made — check the big screen at the front to see your test "
-            f"order appear in the test feed."
+            f"TEST order recorded for {order['flavor']}. No actual arepa will be "
+            f"made. Look for \"{board_name}\" in the Test kitchen lane on the big "
+            f"screen at the front."
         )
 
     return {
@@ -367,6 +524,7 @@ def order_arepa(
         "order_id": order["order_id"],
         "kind": kind,
         "flavor": order["flavor"],
+        "board_name": board_name,
         "message": message,
     }
 
@@ -385,15 +543,15 @@ def check_order_status(customer_id: str) -> dict:
     test orders just tell the user to watch the big screen.
 
     Returns {"found": true, "status": "pending"|"ready", "flavor": ...,
-    "message": ...} or {"found": false, "message": ...} when there is no
-    active real order.
+    "board_name": "Ana P.", "message": ...} or {"found": false, "message":
+    ...} when there is no active real order.
 
     Args:
         customer_id: The 8-character customer_id returned by register_customer.
     """
-    customer_id = (customer_id or "").strip().upper()
+    customer_id = _normalize_customer_id(customer_id)
     if not _CID_RE.match(customer_id):
-        return {"found": False, "message": "Invalid customer_id format."}
+        return _invalid_customer_id("found")
 
     order = storage.get_active_order_for_customer(customer_id, "real")
     if not order:
@@ -402,13 +560,18 @@ def check_order_status(customer_id: str) -> dict:
             "message": f"No active real order found for '{customer_id}'.",
         }
 
-    flavor = storage.get_flavor(order["flavor_id"])
-    flavor_name = flavor["name"] if flavor else order["flavor_id"]
-    name = order.get("customer_name", "")
+    flavor_name = _flavor_name(order["flavor_id"])
+    board_name = ordering.board_name(order.get("customer_name", ""))
 
     status_messages = {
-        "pending": f"Your {flavor_name} is being prepared — listen for '{name}'.",
-        "ready": f"🎉 Your {flavor_name} is READY! Come pick it up, '{name}'!",
+        "pending": (
+            f"Your {flavor_name} is being prepared. Watch the big screen for "
+            f"\"{board_name}\"."
+        ),
+        "ready": (
+            f"Your {flavor_name} is READY! Come to the counter and give your name "
+            f"to pick it up."
+        ),
     }
 
     return {
@@ -416,6 +579,7 @@ def check_order_status(customer_id: str) -> dict:
         "order_id": order["RowKey"],
         "flavor": flavor_name,
         "status": order["status"],
+        "board_name": board_name,
         "message": status_messages.get(order["status"], order["status"]),
     }
 
@@ -439,30 +603,38 @@ def cancel_order(customer_id: str, kind: Literal["test", "real"]) -> dict:
     real order.
 
     Returns {"success": true, "message": ...} on cancellation, or
-    {"success": false, "message": ...} if there is nothing to cancel or
-    the order is already being prepared.
+    {"success": false, "error_code": "invalid_input" | "no_active_order" |
+    "order_not_cancellable", "message": ...} otherwise.
 
     Args:
         customer_id: The 8-character customer_id.
         kind:        "test" or "real" — which active order to cancel.
     """
-    customer_id = (customer_id or "").strip().upper()
+    customer_id = _normalize_customer_id(customer_id)
     if not _CID_RE.match(customer_id):
-        return {"success": False, "message": "Invalid customer_id format."}
+        return _invalid_customer_id("success")
 
     if kind not in ("test", "real"):
-        return {"success": False, "message": "kind must be 'test' or 'real'."}
+        message = "The order type must be either test or real."
+        return {
+            "success": False,
+            "error_code": "invalid_input",
+            "message": message,
+            "fields": {"kind": message},
+        }
 
     order = storage.get_active_order_for_customer(customer_id, kind)
     if not order:
         return {
             "success": False,
+            "error_code": "no_active_order",
             "message": f"You have no active {kind} order to cancel.",
         }
 
     if order.get("status") != "pending":
         return {
             "success": False,
+            "error_code": "order_not_cancellable",
             "message": (
                 "Your order is already being prepared and is on its way to"
                 " READY — please come and pick it up."
@@ -476,8 +648,7 @@ def cancel_order(customer_id: str, kind: Literal["test", "real"]) -> dict:
         storage.increment_stock(order["flavor_id"])
         storage.decrement_real_orders(customer_id)
 
-    flavor = storage.get_flavor(order["flavor_id"])
-    flavor_name = flavor["name"] if flavor else order["flavor_id"]
+    flavor_name = _flavor_name(order["flavor_id"])
     return {
         "success": True,
         "order_id": order["RowKey"],
@@ -499,10 +670,9 @@ def cancel_order(customer_id: str, kind: Literal["test", "real"]) -> dict:
 @_log_call
 def voucher_status() -> dict:
     """
-    Report how long the current voucher code on the dashboard is still
-    valid for. Useful when a voucher attempt failed: if rotation is very
-    close, the user probably read a code that has just expired — ask
-    them to re-read the screen.
+    Report when the voucher code on the dashboard rotates. A code keeps
+    working for one more window after it rotates, so the code on screen
+    now is accepted for seconds_until_rotation + window_seconds.
 
     Returns:
         seconds_until_rotation: int — seconds until a fresh code appears.
@@ -511,15 +681,11 @@ def voucher_status() -> dict:
     """
     remaining = voucher.seconds_until_rotation()
     window = voucher.WINDOW_SECONDS
-    if remaining <= 15:
-        message = (
-            f"The dashboard code is rotating in about {remaining}s — please "
-            f"wait for the new one and read it again."
-        )
-    else:
-        message = (
-            f"The current dashboard code is good for about {remaining}s more."
-        )
+    message = (
+        f"A new dashboard code appears in about {remaining}s, but the code "
+        f"on screen now keeps working for about {(remaining + window) // 60} "
+        f"more minutes."
+    )
     return {
         "seconds_until_rotation": remaining,
         "window_seconds": window,
