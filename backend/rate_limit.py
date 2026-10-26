@@ -4,6 +4,7 @@ Per-key (e.g. customer_id): if more than MAX_FAILS failures occur within
 WINDOW seconds, the key is locked out until enough old failures fall out
 of the window. Cleared on success.
 """
+import math
 import time
 from collections import defaultdict, deque
 from threading import Lock
@@ -35,6 +36,20 @@ def is_locked_out(key: str) -> bool:
             return False
         _prune(dq, now)
         return len(dq) >= _MAX_FAILS
+
+
+def seconds_until_unlock(key: str) -> int:
+    """Whole seconds until ``key`` is no longer locked out (0 if not locked)."""
+    now = time.time()
+    with _lock:
+        dq = _attempts.get(key)
+        if not dq:
+            return 0
+        _prune(dq, now)
+        if len(dq) < _MAX_FAILS:
+            return 0
+        oldest_blocking = dq[len(dq) - _MAX_FAILS]
+        return max(1, math.ceil(oldest_blocking + _WINDOW - now))
 
 
 def clear(key: str) -> None:

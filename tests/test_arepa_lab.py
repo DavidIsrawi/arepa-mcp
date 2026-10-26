@@ -96,6 +96,9 @@ class StoreFixture:
         storage.create_flavor("queso", "Arepa de Queso", "Demo cheese filling", 0.0, 0)
         self.customer_id = storage.create_customer("Ana", "Perez", "Indianapolis")
         self.code = voucher.current_voucher()
+        self.wrong_code = next(
+            code for code in ("ZZZZZZ", "YYYYYY", "XXXXXX") if not voucher.is_valid_voucher(code)
+        )
 
     def order(self, kind="real", **kwargs):
         args = dict(flavor_id="lab-special", customer_id=self.customer_id, kind=kind, voucher_code=self.code)
@@ -206,9 +209,122 @@ class OrderTests(StoreFixture, unittest.TestCase):
 
     def test_voucher_required_for_tests_and_rate_limited(self):
         for _ in range(10):
-            self.assertFalse(self.order("test", voucher_code="WRONG")["success"])
-        self.assertIn("Too many", self.order("test")["message"])
+            self.assertFalse(self.order("test", voucher_code=self.wrong_code)["success"])
+        locked = self.order("test")
+        self.assertIn("Too many", locked["message"])
+        self.assertEqual(locked["error_code"], "voucher_locked")
+        self.assertTrue(1 <= locked["retry_after_s"] <= 60)
         self.assertEqual(storage.list_orders(), [])
+
+    def test_malformed_vouchers_explain_and_do_not_count_toward_lockout(self):
+        for code, bad in [("WRONG0", ["O", "0"]), ("ABCDE", []), ("A1B2C3D", ["1"])]:
+            with self.subTest(code=code):
+                result = self.order("test", voucher_code=code)
+                self.assertEqual(result["error_code"], "malformed_voucher")
+                self.assertEqual(result["invalid_characters"], bad)
+                for char in bad:
+                    self.assertIn(f"'{char}'", result["message"])
+        for _ in range(20):
+            self.assertEqual(self.order("test", voucher_code="WRONG0")["error_code"], "malformed_voucher")
+        self.assertNotIn(self.customer_id, rate_limit._attempts)
+        spaced = f"{self.code[:3]} {self.code[3:].lower()}"
+        self.assertTrue(self.order("test", voucher_code=spaced)["success"])
+
+    def test_wrong_voucher_reports_rotation_timing_for_the_agent(self):
+        result = self.order("test", voucher_code=self.wrong_code)
+        self.assertEqual(result["error_code"], "invalid_voucher")
+        self.assertTrue(1 <= result["seconds_until_rotation"] <= voucher.WINDOW_SECONDS)
+        self.assertIn("re-read", result["agent_note"])
+        self.assertIn("no need to wait", result["agent_note"])
+        self.assertNotIn(result["agent_note"], result["message"])
+        with patch.object(voucher, "seconds_until_rotation", return_value=5):
+            status = mcp_server.voucher_status()
+        self.assertNotIn("wait", status["message"])
+        self.assertIn("3 more minutes", status["message"])
+
+    def test_business_errors_have_stable_codes(self):
+        self.assertEqual(self.order(customer_id="ZZZZZZZZ")["error_code"], "unknown_customer")
+        self.assertEqual(self.order(flavor_id="missing")["error_code"], "flavor_not_found")
+        self.assertEqual(self.order(flavor_id="queso")["error_code"], "sold_out")
+        real = self.order()
+        self.assertTrue(real["success"])
+        pending_again = self.order()
+        self.assertEqual(pending_again["error_code"], "active_order_exists")
+        self.assertNotIn("tasty", pending_again["message"])
+        self.assertEqual(mcp_server.cancel_order(self.customer_id, "test")["error_code"], "no_active_order")
+        storage.update_order_status(real["order_id"], "ready")
+        self.assertEqual(self.order()["error_code"], "active_order_exists")
+        self.assertEqual(mcp_server.cancel_order(self.customer_id, "real")["error_code"], "order_not_cancellable")
+        storage.update_order_status(real["order_id"], "collected")
+        self.assertEqual(self.order()["error_code"], "real_limit_reached")
+
+    def test_validation_errors_are_friendly_and_list_every_field(self):
+        result = mcp_server.register_customer(" ", "G@rcia", "x" * 81)
+        self.assertEqual(result["error_code"], "invalid_input")
+        self.assertEqual(result["fields"], {
+            "first_name": "Please provide a first name.",
+            "last_name": "Last name can only contain letters, spaces, hyphens, apostrophes and periods.",
+            "city": "City must be 80 characters or fewer.",
+        })
+        for message in result["fields"].values():
+            self.assertIn(message, result["message"])
+        self.assertNotIn("pattern", result["message"])
+        result = self.order(customer_id="abc", voucher_code="AB")
+        self.assertEqual(set(result["fields"]), {"customer_id", "voucher_code"})
+        for tool in (mcp_server.get_customer, mcp_server.check_order_status):
+            self.assertEqual(tool("abc")["error_code"], "invalid_input")
+        self.assertEqual(mcp_server.cancel_order("abc", "real")["fields"], {"customer_id": result["fields"]["customer_id"]})
+
+    def test_get_customer_reports_eligibility_without_private_details(self):
+        result = mcp_server.get_customer(f" {self.customer_id.lower()} ")
+        self.assertEqual(result, {
+            "found": True, "customer_id": self.customer_id, "first_name": "Ana",
+            "board_name": "Ana P.", "can_order_real": True, "active_real_order": None,
+            "message": "Welcome back, Ana! You can place test orders and your one real arepa order.",
+        })
+        self.assertTrue(self.order()["success"])
+        result = mcp_server.get_customer(self.customer_id)
+        self.assertFalse(result["can_order_real"])
+        self.assertEqual(result["active_real_order"], {"status": "pending", "flavor": "Arepa Lab Special"})
+        self.assertIn("being prepared", result["message"])
+        order_id = storage.get_active_order_for_customer(self.customer_id, "real")["RowKey"]
+        storage.update_order_status(order_id, "collected")
+        result = mcp_server.get_customer(self.customer_id)
+        self.assertIsNone(result["active_real_order"])
+        self.assertIn("already had your real arepa", result["message"])
+        unknown = mcp_server.get_customer("ZZZZZZZZ")
+        self.assertEqual((unknown["found"], unknown["error_code"]), (False, "unknown_customer"))
+
+    def test_pickup_copy_uses_dashboard_name_not_voucher(self):
+        test = self.order("test")
+        self.assertEqual(test["board_name"], "Ana P.")
+        self.assertIn('"Ana P."', test["message"])
+        real = self.order()
+        self.assertIn('"Ana P."', real["message"])
+        self.assertIn("give your name", real["message"])
+        self.assertNotIn("voucher", real["message"].lower())
+        status = mcp_server.check_order_status(self.customer_id)
+        self.assertEqual(status["board_name"], "Ana P.")
+        self.assertIn('"Ana P."', status["message"])
+        storage.update_order_status(real["order_id"], "ready")
+        self.assertIn("give your name", mcp_server.check_order_status(self.customer_id)["message"])
+
+    def test_registration_keeps_agent_directives_out_of_user_message(self):
+        result = mcp_server.register_customer("Ana", "Perez", "Indianapolis")
+        self.assertNotIn("register_customer", result["message"])
+        self.assertIn("register_customer", result["agent_note"])
+        self.assertIn(result["customer_id"], result["message"])
+        self.assertEqual(result["board_name"], "Ana P.")
+
+    def test_lockout_countdown_tracks_oldest_blocking_failure(self):
+        with patch.object(rate_limit.time, "time", return_value=1000.0):
+            for _ in range(10):
+                rate_limit.record_failure("key")
+        with patch.object(rate_limit.time, "time", return_value=1030.2):
+            self.assertEqual(rate_limit.seconds_until_unlock("key"), 30)
+        with patch.object(rate_limit.time, "time", return_value=1060.5):
+            self.assertEqual(rate_limit.seconds_until_unlock("key"), 0)
+        self.assertEqual(rate_limit.seconds_until_unlock("other"), 0)
 
     def test_customer_normalization_and_accented_names_in_mcp(self):
         registered = mcp_server.register_customer(" María ", " O'Brien ", " Bogotá ")
@@ -238,6 +354,7 @@ class ProtocolTests(StoreFixture, unittest.IsolatedAsyncioTestCase):
     async def test_tool_annotations_describe_effects_and_retry_safety(self):
         expected = {
             "register_customer": (False, False, False),
+            "get_customer": (True, False, True),
             "list_arepas": (True, False, True),
             "order_arepa": (False, True, False),
             "check_order_status": (True, False, True),
@@ -261,7 +378,7 @@ class ProtocolTests(StoreFixture, unittest.IsolatedAsyncioTestCase):
         async with Client(mcp_server.mcp) as client:
             tools = await client.list_tools()
             self.assertEqual({tool.name for tool in tools}, {
-                "register_customer", "list_arepas", "order_arepa",
+                "register_customer", "get_customer", "list_arepas", "order_arepa",
                 "check_order_status", "cancel_order", "voucher_status",
             })
             order = next(tool for tool in tools if tool.name == "order_arepa")
@@ -409,6 +526,7 @@ class WebTests(StoreFixture, unittest.TestCase):
         for invalid, status in [
             ({"customer_id": "ZZZZZZZZ"}, 404),
             ({"voucher_code": "WRONG"}, 403),
+            ({"voucher_code": "ZZZZZZ" if self.code != "ZZZZZZ" else "YYYYYY"}, 403),
             ({"flavor_id": "missing"}, 404),
             ({"flavor_id": "queso"}, 409),
         ]:
@@ -441,7 +559,7 @@ class WebTests(StoreFixture, unittest.TestCase):
 
     def test_voucher_throttling_is_shared_between_transports(self):
         args = {"customer_id": self.customer_id, "flavor_id": "lab-special",
-                "kind": "test", "voucher_code": "WRONG"}
+                "kind": "test", "voucher_code": self.wrong_code}
         for _ in range(5):
             self.assertFalse(mcp_server.order_arepa(**args)["success"])
             self.assertEqual(self.client.post("/orders", json=args).status_code, 403)
@@ -451,6 +569,7 @@ class WebTests(StoreFixture, unittest.TestCase):
         self.assertFalse(mcp_result["success"])
         self.assertEqual(response.status_code, 429)
         self.assertEqual(response.json()["detail"], mcp_result["message"])
+        self.assertEqual(response.headers["Retry-After"], str(mcp_result["retry_after_s"]))
         self.assertEqual(storage.list_orders(), [])
 
     def test_valid_voucher_resets_failures_even_when_order_is_rejected(self):
