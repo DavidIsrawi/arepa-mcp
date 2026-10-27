@@ -81,12 +81,13 @@ CONVERSATION FLOW
      test orders and skip the test-vs-real question.
 
 3. Order:
-   - Call list_arepas. Each item has an 'id' (machine slug, e.g.
-    'arepa-lab-special') and a 'name' (human label, e.g. 'Arepa Lab Special').
-    Show the user a numbered list of NAMES with their qualitative stock
-    (plenty / limited / almost finished), so they can pick by number.
-    Keep the 'id' for yourself — use it as flavor_id when calling
-    order_arepa.
+   - Call list_arepas() before asking the customer to choose.
+     Show every returned item in a numbered list with its 'name',
+     'description', 'price' in USD, and returned 'stock_label'.
+     Use the returned descriptions without adding or inferring ingredients.
+     If a description is empty, say that no description was provided.
+     Keep the 'id' (machine slug, e.g. 'arepa-lab-special') for yourself —
+     use it as flavor_id when calling order_arepa.
    - Ask which flavour they would like (by number or name).
    - Ask whether this is a TEST or REAL order, with shortcuts:
         1. Test order (just practising — no real arepa)
@@ -440,9 +441,12 @@ def list_arepas() -> list[dict]:
         stock_status  one of "plenty", "limited", "almost_finished".
         stock_label   human-readable version of stock_status.
 
-    Show the user a NUMBERED list of names plus stock_label so they can
-    pick by digit (see SHORTCUT OPTIONS in the system prompt). Never show
-    the slug 'id' or the raw stock count.
+    Before asking the user to choose, show every returned item in a NUMBERED
+    list with its name, description, price in USD, and returned stock_label
+    so they can pick by digit (see SHORTCUT OPTIONS in the system prompt).
+    Use only the returned description; if empty, say no description was
+    provided rather than inventing ingredients. Never show the slug 'id'
+    or the raw stock count.
     """
     return ordering.list_arepas()
 
