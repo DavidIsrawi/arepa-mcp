@@ -442,9 +442,25 @@ class WebTests(StoreFixture, unittest.TestCase):
         with TestClient(app, root_path="/workshop") as client:
             response = client.get("/workshop/dashboard")
             self.assertEqual(response.status_code, 200)
-            for asset in ["brand.css", "dashboard.js", "arepa-lab.svg"]:
+            for asset in ["brand.css", "dashboard.js", "arepa-lab.svg", "favicon.svg"]:
                 self.assertIn(f'"/workshop/static/{asset}"', response.text)
                 self.assertEqual(client.get(f"/workshop/static/{asset}").status_code, 200)
+
+    def test_all_pages_use_dedicated_svg_favicon(self):
+        self.login()
+        for path in ["/dashboard", "/admin/login", "/admin/orders", "/admin/flavors",
+                     "/admin/preparing", "/admin/pickup", "/admin/customers", "/admin/users"]:
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertEqual(response.status_code, 200)
+                icons = re.findall(r'<link rel="icon"[^>]+>', response.text)
+                self.assertEqual(len(icons), 1)
+                self.assertIn('href="/static/favicon.svg"', icons[0])
+                self.assertIn('type="image/svg+xml"', icons[0])
+                self.assertIn('sizes="any"', icons[0])
+        icon = self.client.get("/static/favicon.svg")
+        self.assertEqual(icon.status_code, 200)
+        self.assertIn("image/svg+xml", icon.headers["content-type"])
 
     def test_rest_registration_and_test_order(self):
         registered = self.client.post("/customers", json={
@@ -805,6 +821,13 @@ class ConfigurationTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1] / "backend" / "static"
         for path in root.glob("*.svg"):
             ET.parse(path)
+
+    def test_favicon_has_a_tightly_cropped_square_canvas(self):
+        path = Path(__file__).resolve().parents[1] / "backend" / "static" / "favicon.svg"
+        icon = ET.parse(path).getroot()
+        _, _, width, height = map(float, icon.attrib["viewBox"].split())
+        self.assertEqual(width, height)
+        self.assertLessEqual(width, 220)
 
 
 if __name__ == "__main__":

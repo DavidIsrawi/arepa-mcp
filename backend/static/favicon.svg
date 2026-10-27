@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="52 20 216 216" role="img" aria-labelledby="title">
+  <title id="title">Arepa Lab</title>
+  <g transform="rotate(-17 160 130)" stroke="#674127" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M65 123C65 69 106 31 158 31C213 31 255 71 255 124L250 154C239 198 201 222 159 222C115 222 79 197 68 155Z" fill="#d4a25b"/>
+    <path d="M65 123C65 69 106 31 158 31C213 31 255 71 255 124C251 166 211 198 160 198C108 198 69 168 65 123Z" fill="#f2d99c"/>
+    <path d="m111 89 58-24m-60 58 96-39m-62 65 64-26" fill="none" stroke="#96602d" stroke-width="14"/>
+  </g>
+</svg>
