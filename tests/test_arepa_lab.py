@@ -351,6 +351,58 @@ class OrderTests(StoreFixture, unittest.TestCase):
 
 
 class ProtocolTests(StoreFixture, unittest.IsolatedAsyncioTestCase):
+    async def test_canonical_prompt_requires_complete_menu_before_flavour_choice(self):
+        async with Client(mcp_server.mcp) as client:
+            prompt = await client.get_prompt("agent_instructions")
+            instructions = prompt.messages[0].content.text
+            self.assertEqual(instructions, client.initialize_result.instructions)
+            self.assertEqual(instructions, mcp_server.agent_instructions())
+            tools = await client.list_tools()
+
+        order_step = " ".join(
+            instructions.split("3. Order:", 1)[1].split("4. After ordering", 1)[0].split()
+        )
+        self.assertIn("Call list_arepas() before asking the customer to choose.", order_step)
+        menu_guidance = (
+            "Show every returned item in a numbered list with its 'name', "
+            "'description', 'price' in USD, and returned 'stock_label'."
+        )
+        self.assertIn(menu_guidance, order_step)
+        self.assertLess(order_step.index(menu_guidance), order_step.index("Ask which flavour"))
+        self.assertIn(
+            "Use the returned descriptions without adding or inferring ingredients.", order_step,
+        )
+        self.assertIn("If a description is empty, say that no description was provided.", order_step)
+        menu_tool = next(tool for tool in tools if tool.name == "list_arepas")
+        self.assertIn(
+            "name, description, price in USD, and returned stock_label",
+            " ".join(menu_tool.description.split()),
+        )
+
+    async def test_menu_tool_preserves_descriptions_prices_and_stock_labels(self):
+        storage.update_flavor("lab-special", price=4.5)
+        storage.create_flavor("limited", "Limited Arepa", "", 0.0, 6)
+        storage.create_flavor("last", "Last Arepa", "Fixture filling", 7.25, 2)
+        async with Client(mcp_server.mcp) as client:
+            result = await client.call_tool("list_arepas", {})
+        self.assertEqual({item["id"]: item for item in result.data}, {
+            "lab-special": {
+                "id": "lab-special", "name": "Arepa Lab Special",
+                "description": "Demo filling", "price": 4.5,
+                "stock_status": "plenty", "stock_label": "Plenty available",
+            },
+            "limited": {
+                "id": "limited", "name": "Limited Arepa",
+                "description": "", "price": 0.0,
+                "stock_status": "limited", "stock_label": "Limited",
+            },
+            "last": {
+                "id": "last", "name": "Last Arepa",
+                "description": "Fixture filling", "price": 7.25,
+                "stock_status": "almost_finished", "stock_label": "Almost finished",
+            },
+        })
+
     async def test_tool_annotations_describe_effects_and_retry_safety(self):
         expected = {
             "register_customer": (False, False, False),
