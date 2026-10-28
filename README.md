@@ -33,6 +33,12 @@ not trigger it. Reduced-motion users get a static announcement and highlight.
 The board polls every three seconds, so orders that advance out of Preparing
 between updates may not trigger a celebration.
 
+A small white pixel cat follows a rolling pixel arepa along the light strip
+above the dashboard footer. After an initial eight-second pause, they cross at
+a gentle pace, then wait 35–60 seconds before returning. Use **Pause animation**
+to stop them. The decoration stops while hidden or offscreen and is omitted
+when reduced motion is enabled; it never covers the order queues.
+
 ---
 
 ## Tech stack
