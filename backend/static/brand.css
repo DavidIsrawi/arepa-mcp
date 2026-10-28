@@ -84,6 +84,28 @@ button:disabled { cursor: wait; opacity: .6; }
 .training-key { max-width: 100%; }
 .live-status { font-size: .85rem; color: #e4efc7; margin: 0; }
 .live-status.offline { color: #ffd69b; font-weight: 700; }
+.order-board .board-intro { align-items: center; }
+.order-celebration { display: flex; align-items: center; min-height: 70px; min-width: 230px; gap: .4rem; color: var(--ember); font-weight: 800; }
+.order-pop { flex-shrink: 0; visibility: hidden; overflow: visible; }
+.is-celebrating .order-pop { visibility: visible; }
+.order-arepa, .order-confetti { transform-box: fill-box; transform-origin: center; }
+.is-celebrating .order-arepa { animation: order-pop 650ms cubic-bezier(.16, 1, .3, 1) both; }
+.is-celebrating .order-confetti { animation: order-confetti 850ms ease-out both; }
+.order-board .row-new { background: #f9dfae; border-radius: 4px; }
+@keyframes order-pop {
+  0% { transform: translateY(24px) scale(.8); }
+  65% { transform: translateY(-7px) rotate(-6deg); }
+  100% { transform: translateY(0) rotate(0); }
+}
+@keyframes order-confetti {
+  0% { transform: translateY(14px) scale(.45); opacity: 0; }
+  25% { opacity: 1; }
+  100% { transform: translateY(-8px) scale(1.15); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .is-celebrating .order-arepa, .is-celebrating .order-confetti { animation: none; }
+  .order-confetti { display: none; }
+}
 @media (min-width: 1600px) {
   .lane-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 1rem; align-content: start; }
   .empty-state { grid-column: 1 / -1; }

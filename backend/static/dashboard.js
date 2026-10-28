@@ -6,6 +6,13 @@
     const countdown = document.getElementById("countdown");
     const live = document.getElementById("live-pill");
     const picked = document.querySelector("#lane-ready .lane-picked");
+    const celebration = document.getElementById("order-celebration");
+    const announcement = document.getElementById("order-announcement");
+    const seenOrders = new Set();
+    const highlighted = new Set();
+    let initialized = false;
+    let newestCreated = 0;
+    let celebrationTimer;
     let seconds = Number(countdown.dataset.seconds);
     let failures = 0;
 
@@ -24,6 +31,38 @@
         ready: ["Nothing ready yet", "Your name will appear when your arepa is ready."],
     };
 
+    function clearCelebration() {
+        clearTimeout(celebrationTimer);
+        highlighted.clear();
+        celebration.classList.remove("is-celebrating");
+        announcement.textContent = "";
+        document.querySelectorAll(".row-new").forEach((row) => row.classList.remove("row-new"));
+    }
+
+    document.addEventListener("visibilitychange", () => {
+        if (document.hidden) clearCelebration();
+    });
+
+    function findArrivals(data) {
+        const realOrders = [...data.pending, ...data.ready];
+        const arrivals = initialized ? data.pending.filter((order) => {
+            const created = Date.parse(order.created_at);
+            return !seenOrders.has(order.id) && Number.isFinite(created) && created >= newestCreated;
+        }) : [];
+        for (const order of realOrders) {
+            seenOrders.add(order.id);
+            const created = Date.parse(order.created_at);
+            if (Number.isFinite(created)) newestCreated = Math.max(newestCreated, created);
+        }
+        initialized = true;
+        if (!arrivals.length || document.hidden) return;
+        clearCelebration();
+        for (const order of arrivals) highlighted.add(order.id);
+        announcement.textContent = arrivals.length === 1 ? "New order in!" : `${arrivals.length} new orders in!`;
+        celebration.classList.add("is-celebrating");
+        celebrationTimer = setTimeout(clearCelebration, 2400);
+    }
+
     function renderLane(kind, orders, total) {
         const section = document.getElementById(`lane-${kind}`);
         section.querySelector(".lane-count").textContent = total;
@@ -37,7 +76,8 @@
             const featured = index < FEATURED_COUNT ? " row-featured" : "";
             const collected = kind === "ready" && order.picked_up;
             const icon = order.picked_up || kind === "tests" ? "✓" : kind === "ready" ? "→" : "·";
-            return `<div data-id="${escapeHtml(order.id)}" class="row-tile${featured}${collected ? " row-picked" : ""}">
+            const fresh = kind === "pending" && highlighted.has(order.id) ? " row-new" : "";
+            return `<div data-id="${escapeHtml(order.id)}" class="row-tile${featured}${collected ? " row-picked" : ""}${fresh}">
                 <span class="row-icon" aria-hidden="true">${icon}</span>
                 <div class="ticket-copy">
                     <p class="name-tt">${escapeHtml(order.customer_name)}</p>
@@ -59,6 +99,7 @@
             }
             voucher.textContent = data.voucher;
             seconds = data.voucher_seconds;
+            findArrivals(data);
             for (const kind of ["pending", "ready", "tests"]) {
                 renderLane(kind, data[kind], data.totals[kind]);
             }
