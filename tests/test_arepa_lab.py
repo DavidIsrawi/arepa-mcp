@@ -795,6 +795,13 @@ class WebTests(StoreFixture, unittest.TestCase):
         )
         self.assertNotIn("Ask your facilitator", text)
 
+    def test_dashboard_uses_default_training_key(self):
+        os.environ.pop("WORKSHOP_TRAINING_KEY", None)
+        text = self.client.get("/dashboard").text
+        self.assertIn("<strong>MScupcake</strong>", text)
+        self.assertIn("Training key", text)
+        self.assertIn("not the order voucher", text)
+
     def test_configured_workshop_details_are_escaped(self):
         with patch.dict(os.environ, {
             "WORKSHOP_URL": "https://example.com/shpe?x=1&y=2",

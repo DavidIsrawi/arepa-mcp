@@ -9,7 +9,7 @@ services:
       - SESSION_SECRET=${SESSION_SECRET:-change-me-to-a-long-random-string}
       - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-false}
       - WORKSHOP_URL=${WORKSHOP_URL-https://aka.ms/MicrosoftArepas}
-      - WORKSHOP_TRAINING_KEY=${WORKSHOP_TRAINING_KEY:-}
+      - WORKSHOP_TRAINING_KEY=${WORKSHOP_TRAINING_KEY-MScupcake}
       - VOUCHER_SECRET=${VOUCHER_SECRET:-}
     depends_on:
       azurite:

@@ -22,5 +22,5 @@ def workshop_context() -> dict[str, str]:
         "event_location": EVENT_LOCATION,
         "event_dates": EVENT_DATES,
         "workshop_url": url,
-        "training_key": os.environ.get("WORKSHOP_TRAINING_KEY", "").strip(),
+        "training_key": os.environ.get("WORKSHOP_TRAINING_KEY", "MScupcake").strip(),
     }
