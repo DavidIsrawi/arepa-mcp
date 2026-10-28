@@ -8,12 +8,13 @@ from fastapi.templating import Jinja2Templates
 
 from backend import ordering, storage, voucher
 from backend.auth import require_admin
-from backend.branding import workshop_context
+from backend.branding import asset_version, workshop_context
 from backend.ordering import OrderRequest, RegisterRequest
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
 templates.env.globals["workshop"] = workshop_context
+templates.env.globals["asset_version"] = asset_version
 
 # Dashboard tunables
 _DASH_LANE_CAP = 39          # max tiles rendered per lane

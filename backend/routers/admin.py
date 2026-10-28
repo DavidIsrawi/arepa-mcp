@@ -7,7 +7,7 @@ from fastapi.templating import Jinja2Templates
 
 from backend import rate_limit, storage
 from backend.auth import require_admin
-from backend.branding import workshop_context
+from backend.branding import asset_version, workshop_context
 from backend.csrf import csrf_token, require_csrf
 
 router = APIRouter(prefix="/admin")
@@ -15,6 +15,7 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templa
 # Expose csrf_token() to every template.
 templates.env.globals["csrf_token"] = csrf_token
 templates.env.globals["workshop"] = workshop_context
+templates.env.globals["asset_version"] = asset_version
 
 # ── Order status constants ────────────────────────────────────────────────────
 STATUS_PENDING = "pending"

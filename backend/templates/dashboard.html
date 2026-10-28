@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Arepa Lab — Live orders · SHPE 2026</title>
     {% include "brand_head.html" %}
-    <script src="{{ url_for('static', path='dashboard.js').path }}" defer></script>
-    <script src="{{ url_for('static', path='dashboard-mascots.js').path }}" defer></script>
+    <script src="{{ url_for('static', path='dashboard.js').path }}?v={{ asset_version('dashboard.js') }}" defer></script>
+    <script src="{{ url_for('static', path='dashboard-mascots.js').path }}?v={{ asset_version('dashboard-mascots.js') }}" defer></script>
 </head>
 <body class="order-board">
     {% set event = workshop() %}
@@ -83,7 +83,6 @@
         {% endfor %}
     </main>
     <div id="board-mascots" class="board-mascots">
-        <button id="mascot-toggle" class="mascot-toggle" type="button" aria-pressed="false">Pause animation</button>
         <div class="mascot-track" aria-hidden="true">
             <div id="mascot-parade" class="mascot-parade">
                 <svg class="pixel-cat" viewBox="0 0 36 24" width="60" height="40" shape-rendering="crispEdges" focusable="false">

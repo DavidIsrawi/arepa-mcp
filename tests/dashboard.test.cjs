@@ -245,22 +245,16 @@ function launchMascots({ hidden = false, reduced = false, width = 1280 } = {}) {
     const timers = new Map();
     const classes = new Set();
     const properties = new Map();
-    const attributes = new Map();
     const strip = { clientWidth: width };
     const parade = {
         classList: { add: (name) => classes.add(name), remove: (name) => classes.delete(name) },
         style: { setProperty: (name, value) => properties.set(name, value) },
         addEventListener: (name, callback) => { listeners[name] = callback; },
     };
-    const toggle = {
-        textContent: "Pause animation",
-        setAttribute: (name, value) => attributes.set(name, value),
-        addEventListener: (name, callback) => { listeners[name] = callback; },
-    };
     const document = {
         hidden,
         getElementById: (id) => ({
-            "board-mascots": strip, "mascot-parade": parade, "mascot-toggle": toggle,
+            "board-mascots": strip, "mascot-parade": parade,
         })[id],
         addEventListener: (name, callback) => { listeners[name] = callback; },
     };
@@ -292,7 +286,7 @@ function launchMascots({ hidden = false, reduced = false, width = 1280 } = {}) {
     const finish = (target = parade, animationName = "mascot-crossing") => {
         listeners.animationend({ target, animationName });
     };
-    return { document, motion, listeners, timers, classes, properties, attributes, toggle, enter, start, finish };
+    return { document, motion, listeners, timers, classes, properties, enter, start, finish };
 }
 
 test("mascots wait, cross at a steady pace, and leave a quiet gap between crossings", () => {
@@ -313,23 +307,24 @@ test("mascots wait, cross at a steady pace, and leave a quiet gap between crossi
     assert.ok(run.classes.has("is-strolling"));
 });
 
-test("mascots can be paused and resumed without duplicate timers", () => {
+test("mascots keep a gentle minimum crossing time on small screens", () => {
     const run = launchMascots({ width: 375 });
     run.enter();
     run.start();
     assert.equal(run.properties.get("--stroll-duration"), "8s");
-    run.listeners.click();
-    assert.equal(run.attributes.get("aria-pressed"), "true");
-    assert.equal(run.toggle.textContent, "Resume animation");
-    assert.equal(run.timers.size, 0);
-    assert.ok(!run.classes.has("is-strolling"));
+});
+
+test("unchanged intersection notifications do not restart a crossing or its timer", () => {
+    const run = launchMascots();
     run.enter();
-    assert.equal(run.timers.size, 0);
-    run.listeners.click();
-    assert.equal(run.attributes.get("aria-pressed"), "false");
-    assert.equal(run.toggle.textContent, "Pause animation");
+    const [timer] = run.timers.keys();
     run.enter();
     assert.equal(run.timers.size, 1);
+    assert.ok(run.timers.has(timer));
+    run.start();
+    run.enter();
+    assert.equal(run.timers.size, 0);
+    assert.ok(run.classes.has("is-strolling"));
 });
 
 test("mascots stop while hidden, offscreen, or reduced motion is enabled", () => {
@@ -360,10 +355,11 @@ test("mascot strip is decorative, clipped, and separate from the live order lane
     const css = readFileSync(resolve(__dirname, "../backend/static/brand.css"), "utf8");
     assert.match(template, /<\/main>\s*<div id="board-mascots"/);
     assert.match(template, /class="mascot-track" aria-hidden="true"/);
-    assert.match(template, /id="mascot-toggle"[^>]+type="button" aria-pressed="false"/);
+    assert.doesNotMatch(template, /mascot-toggle|Pause animation/);
+    assert.doesNotMatch(mascotScript, /mascot-toggle|toggle\.|paused/);
     assert.match(template, /path='dashboard-mascots\.js'/);
     assert.match(css, /\.mascot-track \{[^}]*overflow: hidden;[^}]*pointer-events: none;/);
-    assert.match(css, /\.mascot-track, \.mascot-toggle \{ display: none; \}/);
+    assert.match(css, /\.mascot-track \{ display: none; \}/);
 });
 
 test("celebration presentation has a polite announcement and reduced-motion fallback", () => {

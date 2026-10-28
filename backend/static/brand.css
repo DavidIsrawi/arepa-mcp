@@ -96,8 +96,6 @@ button:disabled { cursor: wait; opacity: .6; }
 .is-strolling .cat-step { animation: cat-step 600ms steps(1, end) infinite; }
 .is-strolling .cat-step-two { animation-delay: -300ms; }
 .is-strolling .pixel-arepa { animation: arepa-roll 1350ms linear infinite; }
-.mascot-toggle { position: absolute; right: 2rem; top: 0; padding: 1px 0; border: 0; background: transparent; color: var(--muted); font-size: .75rem; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
-.mascot-toggle:hover { color: var(--ink); }
 @keyframes mascot-crossing {
   from { transform: translateX(-180px); }
   to { transform: translateX(100%); }
@@ -129,7 +127,7 @@ button:disabled { cursor: wait; opacity: .6; }
 }
 @media (prefers-reduced-motion: reduce) {
   .is-celebrating .order-arepa, .is-celebrating .order-confetti { animation: none; }
-  .mascot-track, .mascot-toggle { display: none; }
+  .mascot-track { display: none; }
   .order-confetti { display: none; }
 }
 @media (min-width: 1600px) {
@@ -143,7 +141,6 @@ button:disabled { cursor: wait; opacity: .6; }
   .admin-nav-inner { align-items: flex-start; }
 }
 @media (max-width: 700px) {
-  .mascot-toggle { right: 1rem; }
   .board-header, .board-footer { padding: 1rem; }
   .board-intro { padding: 1rem; }
   .board-lanes { grid-template-columns: 1fr; margin: 0 1rem 1rem; }
