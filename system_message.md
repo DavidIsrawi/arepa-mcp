@@ -4,6 +4,14 @@ The canonical instructions are the MCP prompt **`agent_instructions`** in
 `backend/mcp_server.py`. Fetch that prompt at startup, as the example in
 `test-agents/agent.py` does, instead of maintaining a second system prompt.
 
+Before asking the customer to choose an arepa, the agent calls `list_arepas()`
+and shows every returned item's name, description, price in USD and returned
+`stock_label` in a numbered list. Descriptions come from the tool response;
+the agent must not invent ingredients. If a description is empty, it says
+that no description was provided. Menu presentation is guided by the server
+prompt, not a separate client-side menu renderer. Clients that fetch the
+prompt at startup need a new session to pick up updated instructions.
+
 The seven tools are:
 
 - `register_customer(first_name, last_name, city)`

@@ -19,29 +19,39 @@ function launch(initial) {
         remove(name) { this.values.delete(name); },
         contains(name) { return this.values.has(name); },
     } });
-    for (const id of ["voucher-code", "countdown", "live-pill", "picked"]) elements.set(id, make());
+    for (const id of ["voucher-code", "countdown", "live-pill", "picked", "order-celebration", "order-announcement"]) elements.set(id, make());
     elements.get("countdown").dataset.seconds = "10";
     for (const kind of ["pending", "ready", "tests"]) {
         const count = make(), body = make();
         elements.set(`lane-${kind}`, { count, body, querySelector: (selector) => selector === ".lane-count" ? count : body });
     }
-    const timeouts = [], intervals = [], warnings = [];
-    const state = { next: initial, requests: 0 };
+    const timeouts = [], intervals = [], warnings = [], effects = new Map(), listeners = {};
+    const state = { next: initial, requests: 0, hidden: false };
+    const rows = [make(), make()];
     vm.runInNewContext(script, {
         document: {
             getElementById: (id) => elements.get(id),
             querySelector: () => elements.get("picked"),
+            querySelectorAll: () => rows,
+            addEventListener: (name, callback) => { listeners[name] = callback; },
+            get hidden() { return state.hidden; },
         },
         fetch: async () => {
             state.requests++;
             if (state.next instanceof Error) throw state.next;
             return { ok: true, json: async () => state.next };
         },
-        setTimeout: (callback) => timeouts.push(callback),
+        setTimeout: (callback, delay) => {
+            if (delay === 3000) return timeouts.push(callback);
+            const id = Symbol();
+            effects.set(id, callback);
+            return id;
+        },
+        clearTimeout: (id) => effects.delete(id),
         setInterval: (callback) => intervals.push(callback),
         console: { warn: (...args) => warnings.push(args) },
     });
-    return { elements, state, timeouts, intervals, warnings };
+    return { elements, state, timeouts, intervals, warnings, effects, listeners, rows };
 }
 
 test("renders empty queues and updates voucher, counts and countdown", async () => {
@@ -122,4 +132,125 @@ test("rejects malformed data instead of clearing live queues", async () => {
     }
     assert.equal(run.elements.get("lane-pending").body.innerHTML, before);
     assert.ok(run.elements.get("live-pill").classList.contains("offline"));
+});
+
+const order = (id, created_at = "2026-10-28T12:00:00Z") => ({
+    id, created_at, customer_name: "Ana", flavor_name: "Arepa",
+});
+const board = (pending = [], ready = [], tests = []) => ({
+    ...data(), pending, ready, tests,
+    totals: { pending: pending.length, ready: ready.length, tests: tests.length, picked: 0 },
+});
+async function update(run, payload) {
+    run.state.next = payload;
+    run.timeouts.shift()();
+    await settle();
+}
+
+test("initial orders are silent; a new real order celebrates and expires", async () => {
+    const run = launch(board([order("existing")]));
+    await settle();
+    const message = run.elements.get("order-announcement");
+    const celebration = run.elements.get("order-celebration");
+    assert.equal(message.textContent, "");
+    await update(run, board([order("new", "2026-10-28T12:01:00Z"), order("existing")]));
+    assert.equal(message.textContent, "New order in!");
+    assert.ok(celebration.classList.contains("is-celebrating"));
+    assert.equal((run.elements.get("lane-pending").body.innerHTML.match(/row-new/g) || []).length, 1);
+    run.rows.forEach((row) => row.classList.add("row-new"));
+    [...run.effects.values()][0]();
+    assert.equal(message.textContent, "");
+    assert.ok(!celebration.classList.contains("is-celebrating"));
+    assert.ok(run.rows.every((row) => !row.classList.contains("row-new")));
+    assert.equal(run.effects.size, 0);
+});
+
+test("duplicate polls keep the same expiry and do not replay after expiry", async () => {
+    const run = launch(board());
+    await settle();
+    const payload = board([order("new")]);
+    await update(run, payload);
+    const timer = [...run.effects.keys()][0];
+    await update(run, payload);
+    assert.deepEqual([...run.effects.keys()], [timer]);
+    assert.match(run.elements.get("lane-pending").body.innerHTML, /row-new/);
+    run.effects.get(timer)();
+    await update(run, payload);
+    assert.equal(run.effects.size, 0);
+    assert.ok(!run.elements.get("order-celebration").classList.contains("is-celebrating"));
+    assert.ok(!run.elements.get("lane-pending").body.innerHTML.includes("row-new"));
+});
+
+test("practice orders and real status transitions never celebrate", async () => {
+    const existing = order("real");
+    const run = launch(board([existing]));
+    await settle();
+    await update(run, board([], [existing], [order("test")]));
+    await update(run, board([], [{ ...existing, picked_up: true }], [order("test")]));
+    await update(run, board([existing]));
+    assert.equal(run.effects.size, 0);
+    assert.equal(run.elements.get("order-announcement").textContent, "");
+});
+
+test("new arrivals coalesce, but older capped-lane backfill is silent", async () => {
+    const run = launch(board([order("existing")]));
+    await settle();
+    await update(run, board([order("older", "2026-10-28T11:00:00Z")]));
+    assert.equal(run.effects.size, 0);
+    await update(run, board([order("one", "2026-10-28T12:01:00Z"), order("two", "2026-10-28T12:01:00Z")]));
+    assert.equal(run.elements.get("order-announcement").textContent, "2 new orders in!");
+    assert.equal(run.effects.size, 1);
+    assert.equal((run.elements.get("lane-pending").body.innerHTML.match(/row-new/g) || []).length, 2);
+});
+
+test("ready-lane baseline and invalid timestamps do not create false arrivals", async () => {
+    const run = launch(board([], [order("ready", "2026-10-28T12:02:00Z")]));
+    await settle();
+    await update(run, board([order("backfill"), order("invalid", "invalid")]));
+    assert.equal(run.effects.size, 0);
+});
+
+test("connection recovery celebrates new real orders as a single batch", async () => {
+    const run = launch(board([order("existing")]));
+    await settle();
+    await update(run, new Error("Offline"));
+    await update(run, new Error("Offline"));
+    assert.equal(run.effects.size, 0);
+    await update(run, board([order("one", "2026-10-28T12:01:00Z"), order("two", "2026-10-28T12:02:00Z")]));
+    assert.equal(run.elements.get("order-announcement").textContent, "2 new orders in!");
+    assert.equal(run.effects.size, 1);
+    assert.ok(!run.elements.get("live-pill").classList.contains("offline"));
+});
+
+test("hidden arrivals are consumed without replay, and hiding clears active effects", async () => {
+    const run = launch(board());
+    await settle();
+    run.state.hidden = true;
+    await update(run, board([order("hidden")]));
+    run.state.hidden = false;
+    await update(run, board([order("hidden")]));
+    assert.equal(run.effects.size, 0);
+    await update(run, board([order("visible", "2026-10-28T12:01:00Z")]));
+    assert.equal(run.effects.size, 1);
+    run.state.hidden = true;
+    run.listeners.visibilitychange();
+    assert.equal(run.effects.size, 0);
+    assert.equal(run.elements.get("order-announcement").textContent, "");
+});
+
+test("celebration presentation has a polite announcement and reduced-motion fallback", () => {
+    const template = readFileSync(resolve(__dirname, "../backend/templates/dashboard.html"), "utf8");
+    const css = readFileSync(resolve(__dirname, "../backend/static/brand.css"), "utf8");
+    assert.match(template, /id="order-announcement" role="status" aria-live="polite" aria-atomic="true"/);
+    assert.match(template, /class="order-pop"[^>]+aria-hidden="true" focusable="false"/);
+    assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\s*[^}]+animation: none;/);
+    assert.match(css, /\.order-confetti \{ display: none; \}/);
+});
+
+test("celebration reuses the existing arepa brand asset instead of redrawing it", () => {
+    const template = readFileSync(resolve(__dirname, "../backend/templates/dashboard.html"), "utf8");
+    const arepa = template.match(/<g class="order-arepa">([\s\S]*?)<\/g>/);
+    assert.ok(arepa);
+    assert.match(arepa[1], /<image href="\{\{ url_for\('static', path='arepa-lab\.svg'\)\.path \}\}"/);
+    assert.doesNotMatch(arepa[1], /<(?:ellipse|path)\b/);
 });

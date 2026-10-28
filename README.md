@@ -26,6 +26,13 @@ See the [official convention page](https://shpe.org/2026/) for event details.
 | **Docker support** | `docker-compose.yml` with Azurite emulator for local dev |
 | **Azure deployment** | GitHub Actions workflow to build & deploy to Azure Container Apps |
 
+New real orders get a small, silent arepa-and-confetti celebration and a brief
+Preparing-ticket highlight. Arrivals detected in the same dashboard update share
+one celebration. Initial orders, practice orders, and pickup status changes do
+not trigger it. Reduced-motion users get a static announcement and highlight.
+The board polls every three seconds, so orders that advance out of Preparing
+between updates may not trigger a celebration.
+
 ---
 
 ## Tech stack

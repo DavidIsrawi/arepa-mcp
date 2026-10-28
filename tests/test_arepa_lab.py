@@ -351,6 +351,58 @@ class OrderTests(StoreFixture, unittest.TestCase):
 
 
 class ProtocolTests(StoreFixture, unittest.IsolatedAsyncioTestCase):
+    async def test_canonical_prompt_requires_complete_menu_before_flavour_choice(self):
+        async with Client(mcp_server.mcp) as client:
+            prompt = await client.get_prompt("agent_instructions")
+            instructions = prompt.messages[0].content.text
+            self.assertEqual(instructions, client.initialize_result.instructions)
+            self.assertEqual(instructions, mcp_server.agent_instructions())
+            tools = await client.list_tools()
+
+        order_step = " ".join(
+            instructions.split("3. Order:", 1)[1].split("4. After ordering", 1)[0].split()
+        )
+        self.assertIn("Call list_arepas() before asking the customer to choose.", order_step)
+        menu_guidance = (
+            "Show every returned item in a numbered list with its 'name', "
+            "'description', 'price' in USD, and returned 'stock_label'."
+        )
+        self.assertIn(menu_guidance, order_step)
+        self.assertLess(order_step.index(menu_guidance), order_step.index("Ask which flavour"))
+        self.assertIn(
+            "Use the returned descriptions without adding or inferring ingredients.", order_step,
+        )
+        self.assertIn("If a description is empty, say that no description was provided.", order_step)
+        menu_tool = next(tool for tool in tools if tool.name == "list_arepas")
+        self.assertIn(
+            "name, description, price in USD, and returned stock_label",
+            " ".join(menu_tool.description.split()),
+        )
+
+    async def test_menu_tool_preserves_descriptions_prices_and_stock_labels(self):
+        storage.update_flavor("lab-special", price=4.5)
+        storage.create_flavor("limited", "Limited Arepa", "", 0.0, 6)
+        storage.create_flavor("last", "Last Arepa", "Fixture filling", 7.25, 2)
+        async with Client(mcp_server.mcp) as client:
+            result = await client.call_tool("list_arepas", {})
+        self.assertEqual({item["id"]: item for item in result.data}, {
+            "lab-special": {
+                "id": "lab-special", "name": "Arepa Lab Special",
+                "description": "Demo filling", "price": 4.5,
+                "stock_status": "plenty", "stock_label": "Plenty available",
+            },
+            "limited": {
+                "id": "limited", "name": "Limited Arepa",
+                "description": "", "price": 0.0,
+                "stock_status": "limited", "stock_label": "Limited",
+            },
+            "last": {
+                "id": "last", "name": "Last Arepa",
+                "description": "Fixture filling", "price": 7.25,
+                "stock_status": "almost_finished", "stock_label": "Almost finished",
+            },
+        })
+
     async def test_tool_annotations_describe_effects_and_retry_safety(self):
         expected = {
             "register_customer": (False, False, False),
@@ -442,9 +494,25 @@ class WebTests(StoreFixture, unittest.TestCase):
         with TestClient(app, root_path="/workshop") as client:
             response = client.get("/workshop/dashboard")
             self.assertEqual(response.status_code, 200)
-            for asset in ["brand.css", "dashboard.js", "arepa-lab.svg"]:
+            for asset in ["brand.css", "dashboard.js", "arepa-lab.svg", "favicon.svg"]:
                 self.assertIn(f'"/workshop/static/{asset}"', response.text)
                 self.assertEqual(client.get(f"/workshop/static/{asset}").status_code, 200)
+
+    def test_all_pages_use_dedicated_svg_favicon(self):
+        self.login()
+        for path in ["/dashboard", "/admin/login", "/admin/orders", "/admin/flavors",
+                     "/admin/preparing", "/admin/pickup", "/admin/customers", "/admin/users"]:
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertEqual(response.status_code, 200)
+                icons = re.findall(r'<link rel="icon"[^>]+>', response.text)
+                self.assertEqual(len(icons), 1)
+                self.assertIn('href="/static/favicon.svg"', icons[0])
+                self.assertIn('type="image/svg+xml"', icons[0])
+                self.assertIn('sizes="any"', icons[0])
+        icon = self.client.get("/static/favicon.svg")
+        self.assertEqual(icon.status_code, 200)
+        self.assertIn("image/svg+xml", icon.headers["content-type"])
 
     def test_rest_registration_and_test_order(self):
         registered = self.client.post("/customers", json={
@@ -814,6 +882,13 @@ class ConfigurationTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1] / "backend" / "static"
         for path in root.glob("*.svg"):
             ET.parse(path)
+
+    def test_favicon_has_a_tightly_cropped_square_canvas(self):
+        path = Path(__file__).resolve().parents[1] / "backend" / "static" / "favicon.svg"
+        icon = ET.parse(path).getroot()
+        _, _, width, height = map(float, icon.attrib["viewBox"].split())
+        self.assertEqual(width, height)
+        self.assertLessEqual(width, 220)
 
 
 if __name__ == "__main__":

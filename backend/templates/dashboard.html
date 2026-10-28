@@ -34,6 +34,22 @@
     <div class="board-intro">
         <h2>Your order, from agent to pickup.</h2>
         <p>Watch for your name. Collect your arepa when it is ready.</p>
+        <div id="order-celebration" class="order-celebration">
+            <svg class="order-pop" viewBox="0 0 120 100" width="84" height="70" aria-hidden="true" focusable="false">
+                <g class="order-confetti" fill="none" stroke-width="4" stroke-linecap="round">
+                    <path stroke="#9a3c1b" d="M22 30l-5-7 M96 35l6-5" />
+                    <path stroke="#36563a" d="M38 14l-2-6 M85 17l3-6" />
+                    <path stroke="#efb44e" d="M12 49l-5-1 M106 53l6 1" />
+                </g>
+                <path fill="#9c653b" d="M34 57Q60 47 86 57L80 91H40Z" />
+                <g class="order-arepa">
+                    <image href="{{ url_for('static', path='arepa-lab.svg').path }}" x="19" y="10" width="82" height="66" />
+                </g>
+                <path fill="#dac8ac" stroke="#9c653b" stroke-width="2" d="M34 57l26 7 26-7-6 34H40Z" />
+                <path d="M60 66v22" stroke="#9c653b" fill="none" />
+            </svg>
+            <span id="order-announcement" role="status" aria-live="polite" aria-atomic="true"></span>
+        </div>
     </div>
     <main class="board-lanes" aria-label="Live order queues">
         {% for kind, title, orders, count, hint in [
