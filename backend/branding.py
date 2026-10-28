@@ -1,6 +1,9 @@
-"""Shared event copy; workshop access details are supplied by the organizer."""
+"""Shared branding, static asset versions, and organizer-supplied workshop access."""
 
+from functools import lru_cache
+import hashlib
 import os
+from pathlib import Path
 from urllib.parse import urlsplit
 
 
@@ -8,6 +11,12 @@ STORE_NAME = "Arepa Lab"
 EVENT_NAME = "2026 SHPE National Convention"
 EVENT_LOCATION = "Indianapolis, Indiana"
 EVENT_DATES = "October 28–31, 2026"
+
+
+@lru_cache
+def asset_version(filename: str) -> str:
+    content = (Path(__file__).parent / "static" / filename).read_bytes()
+    return hashlib.sha256(content).hexdigest()[:12]
 
 
 def workshop_context() -> dict[str, str]:

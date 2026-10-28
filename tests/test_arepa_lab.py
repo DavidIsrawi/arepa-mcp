@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import os
 from pathlib import Path
 import re
@@ -483,9 +484,10 @@ class WebTests(StoreFixture, unittest.TestCase):
                     if "/static/" in url
                 ]
                 self.assertTrue(assets)
-                self.assertIn("/static/brand.css", assets)
+                self.assertIn(f"/static/brand.css?v={branding.asset_version('brand.css')}", assets)
                 if path == "/dashboard":
-                    self.assertIn("/static/dashboard.js", assets)
+                    for asset in ["dashboard.js", "dashboard-mascots.js"]:
+                        self.assertIn(f"/static/{asset}?v={branding.asset_version(asset)}", assets)
                 for url in assets:
                     self.assertTrue(url.startswith("/static/"), url)
                     self.assertEqual(self.client.get(url).status_code, 200)
@@ -495,8 +497,25 @@ class WebTests(StoreFixture, unittest.TestCase):
             response = client.get("/workshop/dashboard")
             self.assertEqual(response.status_code, 200)
             for asset in ["brand.css", "dashboard.js", "dashboard-mascots.js", "arepa-lab.svg", "favicon.svg"]:
-                self.assertIn(f'"/workshop/static/{asset}"', response.text)
-                self.assertEqual(client.get(f"/workshop/static/{asset}").status_code, 200)
+                version = f"?v={branding.asset_version(asset)}" if asset.endswith((".css", ".js")) else ""
+                url = f"/workshop/static/{asset}{version}"
+                self.assertIn(f'"{url}"', response.text)
+                self.assertEqual(client.get(url).status_code, 200)
+
+    def test_dashboard_asset_versions_match_content_and_bypass_old_cached_assets(self):
+        root = Path(__file__).resolve().parents[1] / "backend" / "static"
+        text = self.client.get("/dashboard").text
+        self.assertNotIn("Pause animation", text)
+        for asset in ["brand.css", "dashboard.js", "dashboard-mascots.js"]:
+            with self.subTest(asset=asset):
+                old = self.client.get(f"/static/{asset}")
+                version = hashlib.sha256((root / asset).read_bytes()).hexdigest()[:12]
+                url = f"/static/{asset}?v={version}"
+                self.assertIn(f'"{url}"', text)
+                self.assertNotIn(f'"/static/{asset}"', text)
+                response = self.client.get(url, headers={"If-None-Match": '"old-release"'})
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.content, old.content)
 
     def test_all_pages_use_dedicated_svg_favicon(self):
         self.login()

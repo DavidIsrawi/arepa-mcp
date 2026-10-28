@@ -35,9 +35,11 @@ between updates may not trigger a celebration.
 
 A small white pixel cat follows a rolling pixel arepa along the light strip
 above the dashboard footer. After an initial eight-second pause, they cross at
-a gentle pace, then wait 35–60 seconds before returning. Use **Pause animation**
-to stop them. The decoration stops while hidden or offscreen and is omitted
-when reduced motion is enabled; it never covers the order queues.
+a gentle pace, then wait 35–60 seconds before returning. The decoration stops
+while hidden or offscreen and is omitted when reduced motion is enabled; it
+never covers the order queues. The shared stylesheet and dashboard scripts use
+content-versioned URLs so a refresh after deployment loads the matching assets
+instead of reusing cached files from an earlier release.
 
 ---
 
