@@ -238,6 +238,134 @@ test("hidden arrivals are consumed without replay, and hiding clears active effe
     assert.equal(run.elements.get("order-announcement").textContent, "");
 });
 
+const mascotScript = readFileSync(resolve(__dirname, "../backend/static/dashboard-mascots.js"), "utf8");
+
+function launchMascots({ hidden = false, reduced = false, width = 1280 } = {}) {
+    const listeners = {};
+    const timers = new Map();
+    const classes = new Set();
+    const properties = new Map();
+    const attributes = new Map();
+    const strip = { clientWidth: width };
+    const parade = {
+        classList: { add: (name) => classes.add(name), remove: (name) => classes.delete(name) },
+        style: { setProperty: (name, value) => properties.set(name, value) },
+        addEventListener: (name, callback) => { listeners[name] = callback; },
+    };
+    const toggle = {
+        textContent: "Pause animation",
+        setAttribute: (name, value) => attributes.set(name, value),
+        addEventListener: (name, callback) => { listeners[name] = callback; },
+    };
+    const document = {
+        hidden,
+        getElementById: (id) => ({
+            "board-mascots": strip, "mascot-parade": parade, "mascot-toggle": toggle,
+        })[id],
+        addEventListener: (name, callback) => { listeners[name] = callback; },
+    };
+    const motion = {
+        matches: reduced,
+        addEventListener: (name, callback) => { listeners.motionchange = callback; },
+    };
+    vm.runInNewContext(mascotScript, {
+        document,
+        window: { matchMedia: () => motion },
+        IntersectionObserver: class {
+            constructor(callback) { listeners.intersection = callback; }
+            observe(element) { assert.equal(element, strip); }
+        },
+        setTimeout: (callback, delay) => {
+            const id = Symbol();
+            timers.set(id, { callback, delay });
+            return id;
+        },
+        clearTimeout: (id) => timers.delete(id),
+    });
+    const enter = (visible = true) => listeners.intersection([{ isIntersecting: visible }]);
+    const start = () => {
+        assert.equal(timers.size, 1);
+        const [id, timer] = [...timers][0];
+        timers.delete(id);
+        timer.callback();
+    };
+    const finish = (target = parade, animationName = "mascot-crossing") => {
+        listeners.animationend({ target, animationName });
+    };
+    return { document, motion, listeners, timers, classes, properties, attributes, toggle, enter, start, finish };
+}
+
+test("mascots wait, cross at a steady pace, and leave a quiet gap between crossings", () => {
+    const run = launchMascots();
+    assert.equal(run.timers.size, 0);
+    run.enter();
+    assert.equal([...run.timers.values()][0].delay, 8000);
+    run.start();
+    assert.ok(run.classes.has("is-strolling"));
+    assert.equal(run.properties.get("--stroll-duration"), `${1460 / 70}s`);
+    run.finish({}, "cat-step");
+    assert.equal(run.timers.size, 0);
+    run.finish();
+    assert.ok(!run.classes.has("is-strolling"));
+    const delay = [...run.timers.values()][0].delay;
+    assert.ok(delay >= 35000 && delay <= 60000);
+    run.start();
+    assert.ok(run.classes.has("is-strolling"));
+});
+
+test("mascots can be paused and resumed without duplicate timers", () => {
+    const run = launchMascots({ width: 375 });
+    run.enter();
+    run.start();
+    assert.equal(run.properties.get("--stroll-duration"), "8s");
+    run.listeners.click();
+    assert.equal(run.attributes.get("aria-pressed"), "true");
+    assert.equal(run.toggle.textContent, "Resume animation");
+    assert.equal(run.timers.size, 0);
+    assert.ok(!run.classes.has("is-strolling"));
+    run.enter();
+    assert.equal(run.timers.size, 0);
+    run.listeners.click();
+    assert.equal(run.attributes.get("aria-pressed"), "false");
+    assert.equal(run.toggle.textContent, "Pause animation");
+    run.enter();
+    assert.equal(run.timers.size, 1);
+});
+
+test("mascots stop while hidden, offscreen, or reduced motion is enabled", () => {
+    const run = launchMascots({ reduced: true });
+    run.enter();
+    assert.equal(run.timers.size, 0);
+    run.motion.matches = false;
+    run.listeners.motionchange();
+    run.start();
+    run.document.hidden = true;
+    run.listeners.visibilitychange();
+    assert.equal(run.timers.size, 0);
+    assert.ok(!run.classes.has("is-strolling"));
+    run.document.hidden = false;
+    run.listeners.visibilitychange();
+    run.enter(false);
+    assert.equal(run.timers.size, 0);
+    run.enter();
+    run.start();
+    run.motion.matches = true;
+    run.listeners.motionchange();
+    assert.equal(run.timers.size, 0);
+    assert.ok(!run.classes.has("is-strolling"));
+});
+
+test("mascot strip is decorative, clipped, and separate from the live order lanes", () => {
+    const template = readFileSync(resolve(__dirname, "../backend/templates/dashboard.html"), "utf8");
+    const css = readFileSync(resolve(__dirname, "../backend/static/brand.css"), "utf8");
+    assert.match(template, /<\/main>\s*<div id="board-mascots"/);
+    assert.match(template, /class="mascot-track" aria-hidden="true"/);
+    assert.match(template, /id="mascot-toggle"[^>]+type="button" aria-pressed="false"/);
+    assert.match(template, /path='dashboard-mascots\.js'/);
+    assert.match(css, /\.mascot-track \{[^}]*overflow: hidden;[^}]*pointer-events: none;/);
+    assert.match(css, /\.mascot-track, \.mascot-toggle \{ display: none; \}/);
+});
+
 test("celebration presentation has a polite announcement and reduced-motion fallback", () => {
     const template = readFileSync(resolve(__dirname, "../backend/templates/dashboard.html"), "utf8");
     const css = readFileSync(resolve(__dirname, "../backend/static/brand.css"), "utf8");

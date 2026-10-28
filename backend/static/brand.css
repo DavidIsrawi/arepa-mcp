@@ -84,6 +84,31 @@ button:disabled { cursor: wait; opacity: .6; }
 .training-key { max-width: 100%; }
 .live-status { font-size: .85rem; color: #e4efc7; margin: 0; }
 .live-status.offline { color: #ffd69b; font-weight: 700; }
+.order-board .board-lanes { margin-bottom: 0; }
+.board-mascots { position: relative; height: 60px; flex-shrink: 0; }
+.mascot-track { position: absolute; inset: 20px 0 0; overflow: hidden; pointer-events: none; }
+.mascot-parade { position: absolute; width: 100%; height: 40px; transform: translateX(-180px); visibility: hidden; }
+.mascot-parade.is-strolling { visibility: visible; animation: mascot-crossing var(--stroll-duration) linear both; }
+.pixel-cat, .pixel-arepa { position: absolute; bottom: 0; overflow: visible; }
+.pixel-cat { left: 0; }
+.pixel-arepa { left: 112px; }
+.cat-step-two { opacity: 0; }
+.is-strolling .cat-step { animation: cat-step 600ms steps(1, end) infinite; }
+.is-strolling .cat-step-two { animation-delay: -300ms; }
+.is-strolling .pixel-arepa { animation: arepa-roll 1350ms linear infinite; }
+.mascot-toggle { position: absolute; right: 2rem; top: 0; padding: 1px 0; border: 0; background: transparent; color: var(--muted); font-size: .75rem; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.mascot-toggle:hover { color: var(--ink); }
+@keyframes mascot-crossing {
+  from { transform: translateX(-180px); }
+  to { transform: translateX(100%); }
+}
+@keyframes cat-step {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+@keyframes arepa-roll {
+  to { transform: rotate(360deg); }
+}
 .order-board .board-intro { align-items: center; }
 .order-celebration { display: flex; align-items: center; min-height: 70px; min-width: 230px; gap: .4rem; color: var(--ember); font-weight: 800; }
 .order-pop { flex-shrink: 0; visibility: hidden; overflow: visible; }
@@ -104,6 +129,7 @@ button:disabled { cursor: wait; opacity: .6; }
 }
 @media (prefers-reduced-motion: reduce) {
   .is-celebrating .order-arepa, .is-celebrating .order-confetti { animation: none; }
+  .mascot-track, .mascot-toggle { display: none; }
   .order-confetti { display: none; }
 }
 @media (min-width: 1600px) {
@@ -117,6 +143,7 @@ button:disabled { cursor: wait; opacity: .6; }
   .admin-nav-inner { align-items: flex-start; }
 }
 @media (max-width: 700px) {
+  .mascot-toggle { right: 1rem; }
   .board-header, .board-footer { padding: 1rem; }
   .board-intro { padding: 1rem; }
   .board-lanes { grid-template-columns: 1fr; margin: 0 1rem 1rem; }

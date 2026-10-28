@@ -494,7 +494,7 @@ class WebTests(StoreFixture, unittest.TestCase):
         with TestClient(app, root_path="/workshop") as client:
             response = client.get("/workshop/dashboard")
             self.assertEqual(response.status_code, 200)
-            for asset in ["brand.css", "dashboard.js", "arepa-lab.svg", "favicon.svg"]:
+            for asset in ["brand.css", "dashboard.js", "dashboard-mascots.js", "arepa-lab.svg", "favicon.svg"]:
                 self.assertIn(f'"/workshop/static/{asset}"', response.text)
                 self.assertEqual(client.get(f"/workshop/static/{asset}").status_code, 200)
 
@@ -783,7 +783,7 @@ class WebTests(StoreFixture, unittest.TestCase):
             self.assertIn(expected, text)
         self.assertNotIn("Training key", text)
         self.assertNotIn("cdn.tailwindcss", text)
-        for asset in ["arepa-lab.svg", "wood-grain.svg", "brand.css", "dashboard.js"]:
+        for asset in ["arepa-lab.svg", "wood-grain.svg", "brand.css", "dashboard.js", "dashboard-mascots.js"]:
             self.assertEqual(self.client.get(f"/static/{asset}").status_code, 200)
 
     def test_dashboard_uses_default_workshop_link(self):
