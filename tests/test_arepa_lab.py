@@ -814,6 +814,28 @@ class WebTests(StoreFixture, unittest.TestCase):
         )
         self.assertNotIn("Ask your facilitator", text)
 
+    def test_dashboard_calico_coat_preserves_both_walking_frames(self):
+        text = self.client.get("/dashboard").text
+        markup = re.search(r'<svg class="pixel-cat"[\s\S]*?</svg>', text).group(0)
+        cat = ET.fromstring(markup)
+        self.assertEqual(cat.attrib["viewBox"], "0 0 36 24")
+        self.assertEqual(cat.attrib["shape-rendering"], "crispEdges")
+        self.assertIsNotNone(cat.find("./defs/path[@id='cat-coat']"))
+        self.assertEqual(
+            cat.find("./defs/clipPath[@id='calico-coat']/use").attrib["href"],
+            "#cat-coat",
+        )
+        self.assertEqual(cat.find("./use[@href='#cat-coat']").attrib["fill"], "#fffdf7")
+        patches = cat.find("./g[@clip-path='url(#calico-coat)']")
+        self.assertIsNotNone(patches)
+        self.assertTrue({"#d98d49", "#403a35"}.issubset(
+            {path.attrib["fill"] for path in patches.findall("./path")}
+        ))
+        for frame in ["cat-step cat-step-one", "cat-step cat-step-two"]:
+            with self.subTest(frame=frame):
+                colors = {path.attrib["fill"] for path in cat.findall(f"./g[@class='{frame}']/path")}
+                self.assertTrue({"#fffdf7", "#d98d49", "#403a35"}.issubset(colors))
+
     def test_dashboard_uses_default_training_key(self):
         os.environ.pop("WORKSHOP_TRAINING_KEY", None)
         text = self.client.get("/dashboard").text
