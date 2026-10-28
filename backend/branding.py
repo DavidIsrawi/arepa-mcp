@@ -11,7 +11,7 @@ EVENT_DATES = "October 28–31, 2026"
 
 
 def workshop_context() -> dict[str, str]:
-    url = os.environ.get("WORKSHOP_URL", "").strip()
+    url = os.environ.get("WORKSHOP_URL", "https://aka.ms/MicrosoftArepas").strip()
     if url:
         parsed = urlsplit(url)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc or parsed.username or parsed.password:

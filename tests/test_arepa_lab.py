@@ -718,6 +718,15 @@ class WebTests(StoreFixture, unittest.TestCase):
         for asset in ["arepa-lab.svg", "wood-grain.svg", "brand.css", "dashboard.js"]:
             self.assertEqual(self.client.get(f"/static/{asset}").status_code, 200)
 
+    def test_dashboard_uses_default_workshop_link(self):
+        os.environ.pop("WORKSHOP_URL", None)
+        text = self.client.get("/dashboard").text
+        self.assertIn(
+            'href="https://aka.ms/MicrosoftArepas"',
+            text,
+        )
+        self.assertNotIn("Ask your facilitator", text)
+
     def test_configured_workshop_details_are_escaped(self):
         with patch.dict(os.environ, {
             "WORKSHOP_URL": "https://example.com/shpe?x=1&y=2",

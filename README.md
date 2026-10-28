@@ -302,7 +302,7 @@ Log in at `/admin` for Preparing, Pickup, Orders, Menu, Customers and Users:
 
 | Setting / task | What to provide |
 |---|---|
-| `WORKSHOP_URL` | The real `aka.ms` short link or other HTTP(S) workshop URL. Blank shows “Ask your facilitator”; no invented link is shipped. |
+| `WORKSHOP_URL` | Defaults to `https://aka.ms/MicrosoftArepas`. Override with another HTTP(S) workshop URL. An explicitly blank value shows “Ask your facilitator”. |
 | `WORKSHOP_TRAINING_KEY` | `ArepasAtSHPE` for this workshop. Configure the external training platform to accept the same value. Blank hides this section. This is public display text, not a secret. |
 | Menu and inventory | Replace illustrative recipes/prices with the actual food offered; confirm allergens with the caterer. |
 | Deployment | Verify GitHub OIDC/repository variables, Azure resources, the `arepa-lab-mcp` image, and published MCP URL. |
